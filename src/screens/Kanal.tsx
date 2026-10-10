@@ -23,7 +23,7 @@ const stateHelp: Record<WaState, string> = {
   not_running: 'Bridge tidak mengirim status. Pesan keluar ditahan di antrean. Minta Angga (Teknisi) memeriksa.',
 };
 
-/** "6281234567890:12@s.whatsapp.net" → "+62 812-•••-7890". */
+/** "620000000101:12@s.whatsapp.net" → "+62 000-•••-0101". */
 function maskAccount(account: string | null): string {
   if (!account) return '—';
   return maskPhone(account.split(/[:@]/)[0]);
