@@ -1,6 +1,0 @@
-{
-  "name": "Jadisatu Workspace",
-  "description": "Operating console untuk founder memantau AI sales agents, meninjau draft WhatsApp, dan mengelola pipeline prospek.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}

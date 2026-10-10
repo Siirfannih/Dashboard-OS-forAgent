@@ -1,0 +1,77 @@
+import { get, post } from './api';
+import type {
+  BridgeStatus, ChatConversation, ChatSnapshot, Control, ConversationDetail, ConversationList, InboxView,
+  Metrics, ReviewItem, ReviewPolicy, UsageTotal, WhatsAppLink, WorkBatch, WorkJobs, WorkflowChange, WorkflowProposal,
+  WorkflowState, WorkspaceState,
+} from './types';
+
+export interface Auth { authenticated: boolean; user?: { name?: string } | null }
+
+/** Everything the UI reads or writes. LiveSource talks to /api; DemoSource is fictional data for the public repo. */
+export interface DataSource {
+  kind: 'live' | 'demo';
+  auth(): Promise<Auth>;
+  login(password: string): Promise<void>;
+  logout(): Promise<void>;
+  state(): Promise<WorkspaceState>;
+  review(): Promise<ReviewItem[]>;
+  reviewPolicy(): Promise<ReviewPolicy>;
+  approve(item: ReviewItem): Promise<void>;
+  decline(item: ReviewItem, reason: string, action: 'revise' | 'hold'): Promise<void>;
+  conversations(view: InboxView, q?: string): Promise<ConversationList>;
+  conversation(id: string): Promise<ConversationDetail>;
+  setControl(id: string, control: Control, reason: string): Promise<void>;
+  ownerMessage(id: string, body: string): Promise<void>;
+  addNote(id: string, body: string): Promise<void>;
+  markSeen(id: string): Promise<void>;
+  metrics(): Promise<Metrics>;
+  bridge(): Promise<BridgeStatus>;
+  whatsapp(): Promise<WhatsAppLink>;
+  jobs(): Promise<WorkJobs>;
+  batches(): Promise<WorkBatch[]>;
+  usage(): Promise<Record<string, UsageTotal>>;
+  chat(id: string): Promise<ChatSnapshot>;
+  createChat(input: { title: string; agent_id: string; kind?: 'private' | 'room'; member_ids?: string[] }): Promise<ChatConversation>;
+  sendChat(id: string, content: string, agent_id?: string): Promise<void>;
+  workflow(): Promise<WorkflowState>;
+  proposeWorkflow(input: { base_version: number; changes: WorkflowChange[]; note: string }): Promise<WorkflowProposal>;
+  decideProposal(id: string, action: 'approve' | 'reject', reason?: string): Promise<WorkflowProposal>;
+}
+
+const enc = encodeURIComponent;
+
+export const liveSource: DataSource = {
+  kind: 'live',
+  auth: () => get<Auth>('/auth'),
+  login: async password => { await post('/login', { password }); },
+  logout: async () => { await post('/logout'); },
+  state: () => get<WorkspaceState>('/state'),
+  review: () => get<ReviewItem[]>('/sales/review'),
+  reviewPolicy: () => get<ReviewPolicy>('/sales/review-policy'),
+  approve: async item => {
+    await post(`/sales/outbox/${enc(item.id)}/approve`, { version: item.version, snapshot: item.snapshot, namespace: item.namespace });
+  },
+  decline: async (item, reason, action) => {
+    await post(`/sales/outbox/${enc(item.id)}/decline`, { version: item.version, snapshot: item.snapshot, namespace: item.namespace, reason, action });
+  },
+  conversations: (view, q = '') => get<ConversationList>(`/sales/conversations?view=${enc(view)}${q ? `&q=${enc(q)}` : ''}`),
+  conversation: id => get<ConversationDetail>(`/sales/conversations/${enc(id)}`),
+  setControl: async (id, control, reason) => { await post(`/sales/conversations/${enc(id)}/control`, { control, reason }); },
+  ownerMessage: async (id, body) => { await post(`/sales/conversations/${enc(id)}/messages`, { body }); },
+  addNote: async (id, body) => { await post(`/sales/conversations/${enc(id)}/notes`, { body }); },
+  markSeen: async id => { await post(`/sales/conversations/${enc(id)}/seen`); },
+  metrics: () => get<Metrics>('/sales/metrics'),
+  bridge: () => get<BridgeStatus>('/sales/bridge'),
+  whatsapp: () => get<WhatsAppLink>('/sales/whatsapp'),
+  jobs: () => get<WorkJobs>('/work/jobs'),
+  batches: () => get<WorkBatch[]>('/work/batches'),
+  usage: () => get<Record<string, UsageTotal>>('/work/usage'),
+  chat: id => get<ChatSnapshot>(`/conversations/${enc(id)}`),
+  createChat: input => post<ChatConversation>('/conversations', { kind: 'private', ...input }),
+  sendChat: async (id, content, agent_id) => {
+    await post(`/conversations/${enc(id)}/messages`, agent_id ? { content, agent_id } : { content });
+  },
+  workflow: () => get<WorkflowState>('/v2/workflow'),
+  proposeWorkflow: input => post<WorkflowProposal>('/v2/workflow/proposals', input),
+  decideProposal: (id, action, reason) => post<WorkflowProposal>(`/v2/workflow/proposals/${enc(id)}/decision`, { action, reason: reason ?? '' }),
+};
