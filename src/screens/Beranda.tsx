@@ -71,7 +71,7 @@ export function BerandaPage({ guide, onOpenGuide }: { guide: Guide; onOpenGuide:
             <div className="mt-3 flex flex-col gap-1.5">
               <Health label="Candra" tone={candraFresh === undefined ? 'unknown' : candraFresh ? 'ok' : 'danger'} text={candraFresh === undefined ? 'tidak diketahui' : candraFresh ? 'aktif' : 'tidak aktif'} />
               <Health label="WhatsApp" tone={!d?.wa ? 'unknown' : d.wa.state === 'connected' ? 'ok' : 'danger'} text={d?.wa ? (waLabel[d.wa.state] ?? d.wa.state).toLowerCase() : 'tidak diketahui'} />
-              <Health label="PC Worker" tone={workerLast && (ageHours(workerLast) ?? 99) < 1 ? 'ok' : 'unknown'} text={workerLast ? `terakhir ${ago(workerLast)}` : 'belum ada sinyal'} />
+              <Health label="PC Worker" tone={workerLast && (ageHours(workerLast) ?? 99) < 20 ? 'ok' : 'unknown'} text={!workerLast ? 'belum ada sinyal' : (ageHours(workerLast) ?? 99) < 1 ? 'aktif' : (ageHours(workerLast) ?? 99) < 20 ? 'selesai semalam' : `terakhir ${ago(workerLast)}`} />
             </div>
           </Card>
         </div>

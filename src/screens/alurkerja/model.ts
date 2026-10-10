@@ -212,7 +212,10 @@ export function pcSignal(live: LiveData | undefined): StatusPill | null {
   if (!live.jobs) return { tone: 'unknown', text: 'Tidak diketahui' };
   const last = live.jobs.reduce<number | null>((max, j) => (j.worker_id && (max === null || j.updated_at > max) ? j.updated_at : max), null);
   if (last === null) return { tone: 'unknown', text: 'Belum ada sinyal' };
-  if ((ageHours(last) ?? 99) < 1) return { tone: 'ok', text: `Aktif ${ago(last)}`, dot: true };
+  const age = ageHours(last) ?? 99;
+  if (age < 1) return { tone: 'ok', text: `Aktif ${ago(last)}`, dot: true };
+  // The worker researches overnight; a run within the last day means the schedule is healthy.
+  if (age < 20) return { tone: 'ok', text: `Selesai semalam · ${ago(last)}`, dot: true };
   return { tone: 'unknown', text: `Sinyal terakhir ${ago(last)}` };
 }
 

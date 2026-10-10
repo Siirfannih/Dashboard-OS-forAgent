@@ -10,11 +10,17 @@ import { COLUMNS, KNOWN_STATUSES, info, payloadOf, prospectOf, researchWindow, s
 
 export function PipelinePage({ id }: { id?: string }) {
   const res = useResource(async s => {
-    const [jobs, batches, prospects] = await Promise.all([
+    const [jobs, batches, open, closed] = await Promise.all([
       s.jobs(),
       s.batches().catch(() => null),
       s.conversations('prospects').catch(() => null),
+      // Paying clients are usually marked resolved; count them in the funnel too.
+      s.conversations('resolved').catch(() => null),
     ]);
+    const prospects = open && {
+      ...open,
+      items: [...open.items, ...(closed?.items ?? []).filter(c => c.audience === 'prospect' && c.control !== 'DO_NOT_CONTACT' && !open.items.some(o => o.id === c.id))],
+    };
     return { jobs: jobs.items ?? [], batches, prospects };
   }, [], 30_000);
 
