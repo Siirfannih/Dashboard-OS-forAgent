@@ -55,11 +55,11 @@ export function RuangTimPage({ id }: { id?: string }) {
             id={agentView}
             agents={agents}
             conversations={conversations.filter(c => c.agent_id === agentView || c.member_ids?.includes(agentView))}
-            loading={!state.data}
+            loading={!state.data && !state.error}
             onNew={() => setNewFor(agentView)}
           />
         )}
-        {!id && <StartView agents={agents} loading={!state.data} onCreated={onChanged} />}
+        {!id && <StartView agents={agents} loading={!state.data && !state.error} onCreated={onChanged} />}
       </section>
 
       <NewThreadModal

@@ -25,6 +25,7 @@ export function PipelinePage({ id }: { id?: string }) {
   }, [], 30_000);
 
   const d = res.data;
+  const waiting = !d && !res.error;
   const jobs = d?.jobs ?? [];
   const columns = useMemo(() => {
     const cols: (Column & { jobs: WorkJob[] })[] = COLUMNS.map(c => ({ ...c, jobs: jobs.filter(j => c.statuses.includes(j.status)) }));
@@ -43,7 +44,7 @@ export function PipelinePage({ id }: { id?: string }) {
           <div>
             <h1 className="font-display text-[28px] leading-9 font-semibold">Pipeline</h1>
             <p className="text-muted">
-              {!d ? 'Memuat riset…' : jobs.length ? `${jobs.length} tugas riset${attention ? ` · ${attention} perlu perhatian` : ''}` : 'Belum ada tugas riset'}
+              {waiting ? 'Memuat riset…' : !d ? 'Riset tidak bisa dimuat' : jobs.length ? `${jobs.length} tugas riset${attention ? ` · ${attention} perlu perhatian` : ''}` : 'Belum ada tugas riset'}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -56,9 +57,9 @@ export function PipelinePage({ id }: { id?: string }) {
 
         <section aria-labelledby="batch-h">
           <h2 id="batch-h" className="sr-only">Batch riset</h2>
-          {!d ? (
+          {waiting ? (
             <Skeleton className="h-[132px]" />
-          ) : d.batches === null ? (
+          ) : !d || d.batches === null ? (
             <Card className="flex items-center gap-2 p-4 text-[13px]"><Pill tone="unknown">Tidak diketahui</Pill><span className="text-muted">Data batch tidak bisa dimuat. Biaya dan kapasitas batch belum bisa ditampilkan.</span></Card>
           ) : d.batches.length === 0 ? (
             <Card className="p-4 text-[13px] text-muted">Belum ada batch riset. Candra membuat batch sebelum riset malam dimulai.</Card>
@@ -69,14 +70,17 @@ export function PipelinePage({ id }: { id?: string }) {
           )}
         </section>
 
-        <Funnel loading={!d} stages={d?.prospects?.items.map(c => c.stage) ?? null} />
+        <Funnel loading={waiting} stages={d?.prospects?.items.map(c => c.stage) ?? null} />
 
         <section aria-labelledby="kanban-h">
           <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
             <h2 id="kanban-h" className="text-[16px] font-semibold">Tugas PC Worker</h2>
             <span className="text-[12px] text-muted">Hanya lihat · klik kartu untuk detail</span>
           </div>
-          {!d && (
+          {!d && !waiting && (
+            <Card className="flex items-center gap-2 p-4 text-[13px]"><Pill tone="unknown">Tidak diketahui</Pill><span className="text-muted">Tugas riset belum bisa dimuat.</span></Card>
+          )}
+          {waiting && (
             <div className="flex gap-3 overflow-hidden">{[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-64 w-[260px] shrink-0" />)}</div>
           )}
           {d && jobs.length === 0 && (

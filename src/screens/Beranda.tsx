@@ -25,6 +25,9 @@ export function BerandaPage({ guide, onOpenGuide }: { guide: Guide; onOpenGuide:
   }, [], 30_000);
 
   const d = res.data;
+  // Skeletons only while the first load is in flight; after a failure show unknown, never fake zeros.
+  const waiting = !d && !res.error;
+  const failed = !d && !!res.error;
   const pending = d?.review.filter(r => ['draft', 'needs_revision'].includes(r.status)) ?? [];
   const oldest = pending.reduce<number | null>((min, r) => (min === null || r.created_at < min ? r.created_at : min), null);
   const expiringSoon = pending.filter(r => (ageHours(r.created_at) ?? 0) > 42).length;
@@ -57,13 +60,13 @@ export function BerandaPage({ guide, onOpenGuide }: { guide: Guide; onOpenGuide:
         {res.error && !d && <ErrorBanner message={res.error} onRetry={res.reload} />}
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <StatCard label="Menunggu keputusanmu" loading={!d} onClick={() => go('keputusan')}
-            value={pending.length} foot={pending.length ? <>Tertua {ago(oldest)}{expiringSoon ? <Pill tone="warn" dot>{expiringSoon} hampir kedaluwarsa</Pill> : null}</> : 'Semua draf sudah ditinjau'} />
-          <StatCard label="Riset worker" loading={!d} onClick={() => go('pipeline')}
-            value={jobCount(['accepted', 'submitted'])}
+          <StatCard label="Menunggu keputusanmu" loading={waiting} onClick={() => go('keputusan')}
+            value={failed ? '—' : pending.length} foot={failed ? 'Tidak diketahui' : pending.length ? <>Tertua {ago(oldest)}{expiringSoon ? <Pill tone="warn" dot>{expiringSoon} hampir kedaluwarsa</Pill> : null}</> : 'Semua draf sudah ditinjau'} />
+          <StatCard label="Riset worker" loading={waiting} onClick={() => go('pipeline')}
+            value={d?.jobs ? jobCount(['accepted', 'submitted']) : '—'}
             suffix={jobs.length ? ` / ${jobs.length}` : undefined}
-            foot={jobs.length ? <><span>{jobCount(['queued', 'claimed', 'running'])} berjalan/antre</span>{blockedJobs.length > 0 && <span className="text-danger">{blockedJobs.length} perlu perhatian</span>}</> : 'Belum ada batch riset'} />
-          <StatCard label="Balasan prospek" loading={!d} onClick={() => go('percakapan')}
+            foot={jobs.length ? <><span>{jobCount(['queued', 'claimed', 'running'])} berjalan/antre</span>{blockedJobs.length > 0 && <span className="text-danger">{blockedJobs.length} perlu perhatian</span>}</> : d?.jobs ? 'Belum ada batch riset' : 'Tidak diketahui'} />
+          <StatCard label="Balasan prospek" loading={waiting} onClick={() => go('percakapan')}
             value={d?.metrics ? percent(d.metrics.reply_rate) : '—'}
             foot={d?.metrics ? `${d.metrics.reply_rate.numerator} dari ${d.metrics.reply_rate.denominator} bisnis yang dikirimi` : 'Metrik belum tersedia'} />
           <Card className="p-5">
@@ -82,8 +85,10 @@ export function BerandaPage({ guide, onOpenGuide }: { guide: Guide; onOpenGuide:
               <h2 className="text-[16px] font-semibold">Butuh kamu</h2>
               <span className="text-[12px] text-muted">Satu klik per keputusan</span>
             </div>
-            {!d && <div className="flex flex-col gap-3 px-5 pb-5"><Skeleton className="h-12" /><Skeleton className="h-12" /></div>}
-            {d && tasks.length === 0 && (
+            {waiting && <div className="flex flex-col gap-3 px-5 pb-5"><Skeleton className="h-12" /><Skeleton className="h-12" /></div>}
+            {failed && <p className="border-t border-line px-5 py-6 text-[13px] text-muted">Belum bisa memastikan apa yang butuh kamu. Coba muat ulang.</p>}
+            {d && !d.held && <p className="border-t border-line px-5 py-3 text-[12px] text-muted">Percakapan yang ditahan tidak bisa dimuat; cek halaman Percakapan.</p>}
+            {d && tasks.length === 0 && d.held && (
               <div className="border-t border-line px-5 py-10 text-center">
                 <div className="mx-auto mb-2 grid size-10 place-items-center rounded-full bg-ok-soft text-ok"><Check size={18} /></div>
                 <div className="font-semibold">Semua beres</div>
@@ -129,7 +134,7 @@ export function BerandaPage({ guide, onOpenGuide }: { guide: Guide; onOpenGuide:
             <Card className="p-5">
               <Overline>Aktivitas</Overline>
               <h2 className="mb-4 text-[16px] font-semibold">Yang terjadi belakangan</h2>
-              <Timeline items={d?.state?.activity?.slice(0, 6) ?? []} loading={!d} />
+              {d && !d.state ? <p className="text-[13px] text-muted">Aktivitas tidak bisa dimuat (tidak diketahui).</p> : failed ? <p className="text-[13px] text-muted">Tidak diketahui.</p> : <Timeline items={d?.state?.activity?.slice(0, 6) ?? []} loading={waiting} />}
             </Card>
           </div>
         </div>

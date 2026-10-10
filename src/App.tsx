@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { PageBoundary } from './components/PageBoundary';
 import { Shell } from './components/Shell';
 import { ApiError } from './lib/api';
 import { SourceProvider, ToastProvider } from './lib/data';
@@ -95,7 +96,7 @@ export default function App() {
   );
 }
 
-function Workspace({ onLogout }: { onLogout: () => void }) {
+export function Workspace({ onLogout }: { onLogout: () => void }) {
   const route = useRoute();
   const guide = useGuide();
   const [guideOpen, setGuideOpen] = useState(() => !guide.seen);
@@ -103,14 +104,16 @@ function Workspace({ onLogout }: { onLogout: () => void }) {
   return (
     <>
       <Shell page={route.page} onOpenGuide={() => setGuideOpen(true)} guideProgress={guide.progress} onLogout={onLogout}>
-        {route.page === 'beranda' && <BerandaPage guide={guide} onOpenGuide={() => setGuideOpen(true)} />}
-        {route.page === 'keputusan' && <KeputusanPage id={route.id} />}
-        {route.page === 'pipeline' && <PipelinePage id={route.id} />}
-        {route.page === 'percakapan' && <PercakapanPage id={route.id} />}
-        {route.page === 'ruang-tim' && <RuangTimPage id={route.id} />}
-        {route.page === 'alur-kerja' && <AlurKerjaPage id={route.id} />}
-        {route.page === 'biaya' && <BiayaPage id={route.id} />}
-        {route.page === 'kanal' && <KanalPage id={route.id} />}
+        <PageBoundary resetKey={`${route.page}/${route.id ?? ''}`}>
+          {route.page === 'beranda' && <BerandaPage guide={guide} onOpenGuide={() => setGuideOpen(true)} />}
+          {route.page === 'keputusan' && <KeputusanPage id={route.id} />}
+          {route.page === 'pipeline' && <PipelinePage id={route.id} />}
+          {route.page === 'percakapan' && <PercakapanPage id={route.id} />}
+          {route.page === 'ruang-tim' && <RuangTimPage id={route.id} />}
+          {route.page === 'alur-kerja' && <AlurKerjaPage id={route.id} />}
+          {route.page === 'biaya' && <BiayaPage id={route.id} />}
+          {route.page === 'kanal' && <KanalPage id={route.id} />}
+        </PageBoundary>
       </Shell>
       {guideOpen && <Onboarding guide={guide} onClose={() => { guide.markSeen(); setGuideOpen(false); }} />}
     </>
