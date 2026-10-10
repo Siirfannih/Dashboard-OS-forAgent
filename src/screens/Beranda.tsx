@@ -11,7 +11,7 @@ import { GUIDE_STEPS, type Guide } from './Onboarding';
 
 export function BerandaPage({ guide, onOpenGuide }: { guide: Guide; onOpenGuide: () => void }) {
   const res = useResource(async s => {
-    const [state, review, metrics, bridge, wa, jobs, held] = await Promise.all([
+    const [state, review, metrics, bridge, wa, jobs, held, worker] = await Promise.all([
       s.state().catch(() => null),
       s.review(),
       s.metrics().catch(() => null),
@@ -19,8 +19,9 @@ export function BerandaPage({ guide, onOpenGuide }: { guide: Guide; onOpenGuide:
       s.whatsapp().catch(() => null),
       s.jobs().catch(() => null),
       s.conversations('hold').catch(() => null),
+      s.worker().catch(() => null),
     ]);
-    return { state, review, metrics, bridge, wa, jobs, held };
+    return { state, review, metrics, bridge, wa, jobs, held, worker };
   }, [], 30_000);
 
   const d = res.data;
@@ -39,7 +40,8 @@ export function BerandaPage({ guide, onOpenGuide }: { guide: Guide; onOpenGuide:
   if (blockedJobs.length) tasks.push({ key: 'jobs', icon: <AgentAvatar id="research" />, title: `${blockedJobs.length} tugas riset perlu perhatian`, meta: 'Terblokir, perlu revisi, atau hasil tidak diketahui', action: 'Lihat', to: href('pipeline') });
 
   const candraFresh = d?.bridge ? d.bridge.candra_online : undefined;
-  const workerLast = jobs.reduce<number | null>((max, j) => (j.worker_id && (max === null || j.updated_at > max) ? j.updated_at : max), null);
+  const workerLast = d?.worker?.last_activity_at
+    ?? jobs.reduce<number | null>((max, j) => (j.worker_id && (max === null || j.updated_at > max) ? j.updated_at : max), null);
 
   return (
     <div className="min-w-0 flex-1 overflow-y-auto">

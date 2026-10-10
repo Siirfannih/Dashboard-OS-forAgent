@@ -156,17 +156,23 @@ export function Tabs<T extends string>({ value, options, onChange, label }: { va
 
 export function Modal({ open, onClose, title, children, footer, width = 520 }: { open: boolean; onClose: () => void; title: string; children: ReactNode; footer?: ReactNode; width?: number }) {
   const ref = useRef<HTMLDivElement>(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
   useEffect(() => {
     if (!open) return;
     const previous = document.activeElement as HTMLElement | null;
-    ref.current?.querySelector<HTMLElement>('textarea, input, select, button')?.focus();
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    const root = ref.current;
+    // Prefer the first form field; fall back to the first body button, then the close button.
+    (root?.querySelector<HTMLElement>('[data-modal-body] textarea, [data-modal-body] input, [data-modal-body] select')
+      ?? root?.querySelector<HTMLElement>('[data-modal-body] button, [data-modal-footer] button')
+      ?? root?.querySelector<HTMLElement>('button'))?.focus();
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && closeRef.current();
     window.addEventListener('keydown', onKey);
     return () => {
       window.removeEventListener('keydown', onKey);
       previous?.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-[70] grid place-items-center bg-ink/30 p-4 backdrop-blur-[2px]" onMouseDown={e => e.target === e.currentTarget && onClose()}>
@@ -175,8 +181,8 @@ export function Modal({ open, onClose, title, children, footer, width = 520 }: {
           <h2 className="text-[16px] font-semibold">{title}</h2>
           <IconButton label="Tutup" onClick={onClose}><X size={18} /></IconButton>
         </div>
-        <div className="max-h-[70vh] overflow-y-auto px-5 py-4">{children}</div>
-        {footer && <div className="flex flex-wrap justify-end gap-2 border-t border-line bg-surface px-5 py-3">{footer}</div>}
+        <div data-modal-body className="max-h-[70vh] overflow-y-auto px-5 py-4">{children}</div>
+        {footer && <div data-modal-footer className="flex flex-wrap justify-end gap-2 border-t border-line bg-surface px-5 py-3">{footer}</div>}
       </div>
     </div>
   );

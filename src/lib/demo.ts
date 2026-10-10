@@ -118,7 +118,15 @@ const chats: ChatSnapshot[] = [
       { id: 'cm1', role: 'user', content: 'Tolong cek kenapa sesi WhatsApp terputus semalam.', agent_id: null, created_at: iso(7 * H) },
       { id: 'cm2', role: 'assistant', content: 'Sesi WhatsApp menunggu scan QR sejak 02:14. Bridge berjalan normal; tidak ada pesan yang hilang karena pengiriman sedang dijeda. Langkah berikutnya: pindai QR dari HP nomor pengirim di halaman Kanal.', agent_id: 'engineer', created_at: iso(6.9 * H) },
     ],
-    runs: [{ id: 'run1', status: 'completed', agent_id: 'engineer' }],
+    runs: [{ id: 'run1', status: 'completed', agent_id: 'engineer', created_at: iso(7 * H) }],
+  },
+  {
+    id: 'chat_room_ops', title: 'Operasi harian', agent_id: 'engineer', kind: 'room', created_at: iso(80 * H), updated_at: iso(26 * H), member_ids: ['engineer', 'manda'],
+    messages: [
+      { id: 'cr1', role: 'user', content: '@engineer tolong pastikan backup harian berjalan.', agent_id: 'engineer', created_at: iso(27 * H) },
+      { id: 'cr2', role: 'assistant', content: 'Backup harian terakhir selesai pukul 03:15 dan bisa dipulihkan. Tidak ada tindakan yang dibutuhkan.', agent_id: 'engineer', created_at: iso(26 * H) },
+    ],
+    runs: [{ id: 'run2', status: 'completed', agent_id: 'engineer', created_at: iso(27 * H) }],
   },
 ];
 
@@ -126,7 +134,7 @@ const workflowState: WorkflowState = {
   version: 7,
   overrides: {},
   proposals: [
-    { id: 'wp_demo1', base_version: 6, status: 'dispatched', note: 'Batas batch diturunkan selama pilot.', created_at: now() - 50 * H, decided_at: now() - 49 * H,
+    { id: 'wp_demo1', base_version: 6, status: 'applied', applied_at: now() - 30 * H, note: 'Batas batch diturunkan selama pilot.', created_at: now() - 50 * H, decided_at: now() - 49 * H,
       changes: [{ node_id: 'research', field: 'limit.batch', from: '25 prospek', to: '20 prospek' }], task_conversation_id: 'chat_engineer' },
   ],
 };
@@ -172,7 +180,7 @@ export const demoSource: DataSource = {
   login: async () => undefined,
   logout: async () => undefined,
   state: async () => { await wait(); return workspaceState(); },
-  review: async () => { await wait(); return reviewItems.filter(item => ['draft', 'needs_revision'].includes(item.status)); },
+  review: async () => { await wait(); return reviewItems.filter(item => ['draft', 'needs_revision', 'queued', 'telegram_approved'].includes(item.status)); },
   reviewPolicy: async () => ({ owner_approval: 'all_ai', approval_expires_hours: 48, pitch_evidence_hours: 24, autonomous_replies: false, pilot_outbound: false }),
   approve: async item => {
     await wait(400);
@@ -222,7 +230,8 @@ export const demoSource: DataSource = {
     control: { AUTO: 4, HOLD: 1, HUMAN_CONTROLLED: 1, DO_NOT_CONTACT: 1 }, stages: { ELIGIBLE: 3, SENT: 1, REPLIED: 3 },
   }),
   bridge: async () => ({ configured: true, paused: true, drafting: true, candra_online: true, dropped_inbound: 0, last_error: null, last_tick_at: now() - 40, health: { status: 'disconnected' } }),
-  whatsapp: async () => ({ state: 'waiting_qr', qr: null, account: null, updated_at: now() - 120 }),
+  // Fictional pairing string: renders a QR for preview, pairs with nothing.
+  whatsapp: async () => ({ state: 'waiting_qr', qr: '2@DEMO-ONLY-not-a-real-pairing-code,jadisatu-workspace-demo,AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=,BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=,1', account: null, updated_at: now() - 20 }),
   jobs: async () => { await wait(); return { items: jobs }; },
   batches: async () => [{ id: 'batch_demo14', cap_usd: 2, max_items: 25, domain: 'sales', head_agent: 'candra', created_at: now() - 12 * H, items: jobs.length, known_cost_usd: 0.84, reserved_usd: 0.12, remaining_usd: 1.04 }],
   usage: async () => ({
@@ -248,7 +257,7 @@ export const demoSource: DataSource = {
     if (!c) return;
     c.messages.push({ id: `cm${Date.now()}`, role: 'user', content, agent_id: null, created_at: iso(0) });
     const runId = `run${Date.now()}`;
-    c.runs.push({ id: runId, status: 'running', agent_id: c.agent_id });
+    c.runs.push({ id: runId, status: 'running', agent_id: c.agent_id, created_at: iso(0) });
     setTimeout(() => {
       c.messages.push({ id: `cm${Date.now()}`, role: 'assistant', content: 'Ini mode demo — di workspace asli, agent membalas lewat Hermes. Pesanmu tercatat.', agent_id: c.agent_id, created_at: iso(0) });
       c.runs = c.runs.map(r => (r.id === runId ? { ...r, status: 'completed' } : r));
@@ -270,11 +279,21 @@ export const demoSource: DataSource = {
     proposal.decided_at = now();
     if (action === 'reject') proposal.status = 'rejected';
     else {
+      if (workflowState.proposals.some(p => p.status === 'dispatched')) throw new Error('Masih ada perubahan yang menunggu diterapkan Angga. Selesaikan itu dulu.');
       proposal.status = 'dispatched';
       proposal.task_conversation_id = 'chat_engineer';
-      for (const ch of proposal.changes) workflowState.overrides[`${ch.node_id}.${ch.field}`] = ch.to;
-      workflowState.version += 1;
     }
+    return structuredClone(proposal);
+  },
+  worker: async () => ({ last_activity_at: now() - 5 * H, by_status: { accepted: 3, running: 1, queued: 2, needs_revision: 1, blocked: 1, abandoned_unknown: 1 }, identities: 1 }),
+  markApplied: async id => {
+    await wait(300);
+    const proposal = workflowState.proposals.find(p => p.id === id);
+    if (!proposal || proposal.status !== 'dispatched') throw new Error('Hanya proposal yang sudah dikirim ke Angga yang bisa ditandai diterapkan');
+    for (const ch of proposal.changes) workflowState.overrides[`${ch.node_id}.${ch.field}`] = ch.to;
+    workflowState.version += 1;
+    proposal.status = 'applied';
+    proposal.applied_at = now();
     return structuredClone(proposal);
   },
 };

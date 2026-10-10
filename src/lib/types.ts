@@ -240,7 +240,7 @@ export interface ChatMessage {
   created_at: string;
 }
 
-export interface ChatRun { id: string; status: string; agent_id: string; error?: string | null }
+export interface ChatRun { id: string; status: string; agent_id: string; error?: string | null; created_at?: string; updated_at?: string }
 
 export interface ChatSnapshot extends ChatConversation {
   messages: ChatMessage[];
@@ -298,14 +298,17 @@ export interface WorkflowChange { node_id: string; field: string; from: string; 
 export interface WorkflowProposal {
   id: string;
   base_version: number;
-  status: 'pending' | 'approved' | 'rejected' | 'dispatched';
+  status: 'pending' | 'approved' | 'rejected' | 'dispatched' | 'applied';
   changes: WorkflowChange[];
   note: string;
   created_at: number;
   decided_at?: number | null;
   /** Workspace conversation id where the Engineer received the task. */
   task_conversation_id?: string | null;
+  applied_at?: number | null;
 }
+
+export interface WorkerSignal { last_activity_at: number | null; by_status: Record<string, number>; identities: number }
 
 export interface WorkflowState {
   version: number;

@@ -2,7 +2,7 @@ import { get, post } from './api';
 import type {
   BridgeStatus, ChatConversation, ChatSnapshot, Control, ConversationDetail, ConversationList, InboxView,
   Metrics, ReviewItem, ReviewPolicy, UsageTotal, WhatsAppLink, WorkBatch, WorkJobs, WorkflowChange, WorkflowProposal,
-  WorkflowState, WorkspaceState,
+  WorkerSignal, WorkflowState, WorkspaceState,
 } from './types';
 
 export interface Auth { authenticated: boolean; user?: { name?: string } | null }
@@ -36,6 +36,8 @@ export interface DataSource {
   workflow(): Promise<WorkflowState>;
   proposeWorkflow(input: { base_version: number; changes: WorkflowChange[]; note: string }): Promise<WorkflowProposal>;
   decideProposal(id: string, action: 'approve' | 'reject', reason?: string): Promise<WorkflowProposal>;
+  markApplied(id: string): Promise<WorkflowProposal>;
+  worker(): Promise<WorkerSignal>;
 }
 
 const enc = encodeURIComponent;
@@ -74,4 +76,6 @@ export const liveSource: DataSource = {
   workflow: () => get<WorkflowState>('/v2/workflow'),
   proposeWorkflow: input => post<WorkflowProposal>('/v2/workflow/proposals', input),
   decideProposal: (id, action, reason) => post<WorkflowProposal>(`/v2/workflow/proposals/${enc(id)}/decision`, { action, reason: reason ?? '' }),
+  markApplied: id => post<WorkflowProposal>(`/v2/workflow/proposals/${enc(id)}/applied`),
+  worker: () => get<WorkerSignal>('/v2/worker'),
 };
