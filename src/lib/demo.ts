@@ -3,7 +3,7 @@
 import type { DataSource } from './source';
 import type {
   ChatSnapshot, Control, ConversationDetail, InboxView, ReviewItem, SalesConversation, SalesMessage, Study,
-  WorkJob, WorkflowProposal, WorkflowState, WorkspaceState,
+  CandraSession, WorkJob, WorkflowProposal, WorkflowState, WorkspaceState,
 } from './types';
 
 const now = () => Date.now() / 1000;
@@ -136,6 +136,15 @@ const workflowState: WorkflowState = {
   proposals: [
     { id: 'wp_demo1', base_version: 6, status: 'applied', applied_at: now() - 30 * H, note: 'Batas batch diturunkan selama pilot.', created_at: now() - 50 * H, decided_at: now() - 49 * H,
       changes: [{ node_id: 'research', field: 'limit.batch', from: '25 prospek', to: '20 prospek' }], task_conversation_id: 'chat_engineer' },
+  ],
+};
+
+const candraSession: CandraSession = {
+  available: true, reason: null, detail: null, session_id: 'demo-telegram-dm',
+  turn: { running: false, started_at: null, error: null, finished_at: null },
+  messages: [
+    { id: 'cd1', role: 'user', content: 'Candra, berapa draf yang siap aku tinjau pagi ini?', created_at: now() - 3 * H, source: 'telegram' },
+    { id: 'cd2', role: 'assistant', content: 'Ada **3 draf** yang siap: Rumah Senyum Dental, Padma Dental Studio, dan Kuta Laser Skin. Semuanya masih mode uji, jadi tidak ada yang terkirim walau disetujui.', created_at: now() - 2.9 * H, source: 'telegram' },
   ],
 };
 
@@ -284,6 +293,17 @@ export const demoSource: DataSource = {
       proposal.task_conversation_id = 'chat_engineer';
     }
     return structuredClone(proposal);
+  },
+  candra: async () => { await wait(); return structuredClone(candraSession); },
+  sendCandra: async content => {
+    await wait(300);
+    if (candraSession.turn.running) throw new Error('Candra masih membalas pesan sebelumnya.');
+    candraSession.messages.push({ id: `cw${Date.now()}`, role: 'user', content, created_at: now(), source: 'web' });
+    candraSession.turn = { running: true, started_at: now(), error: null, finished_at: null };
+    setTimeout(() => {
+      candraSession.messages.push({ id: `cr${Date.now()}`, role: 'assistant', content: 'Ini mode demo. Di workspace asli, Candra membalas di sesi yang sama dengan Telegram, jadi percakapan ini juga ia ingat saat kamu lanjut dari HP.', created_at: now(), source: 'web' });
+      candraSession.turn = { running: false, started_at: candraSession.turn.started_at, error: null, finished_at: now() };
+    }, 1800);
   },
   worker: async () => ({ last_activity_at: now() - 5 * H, by_status: { accepted: 3, running: 1, queued: 2, needs_revision: 1, blocked: 1, abandoned_unknown: 1 }, identities: 1 }),
   markApplied: async id => {

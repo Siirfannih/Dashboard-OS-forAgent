@@ -2,9 +2,9 @@ import { agent, workspace } from '../../config/workspace';
 import { toDate } from '../../lib/format';
 import type { ChatConversation, ChatMessage, ChatRun, ChatSnapshot, WorkspaceAgent } from '../../lib/types';
 
-/** Agent whose chat endpoint does not exist yet. Shown, never faked. */
+/** Candra talks through her own Telegram DM session; the web joins that same session. */
 export const CANDRA_ID = 'candra';
-export const CANDRA_NOTE = 'Chat langsung dengan Candra sedang disiapkan. Untuk sekarang, tugaskan Candra lewat Keputusan dan Percakapan.';
+export const CANDRA_NOTE = 'Satu sesi dengan Telegram: yang kamu tulis di sini juga Candra ingat saat kamu lanjut dari Telegram, dan sebaliknya.';
 export const AGENT_PREFIX = 'agent:';
 
 export const SUGGESTIONS = [
@@ -14,24 +14,24 @@ export const SUGGESTIONS = [
   'Apa yang perlu aku putuskan hari ini?',
 ];
 
-export type AgentAvailability = 'ready' | 'history_only' | 'planned' | 'soon' | 'unknown';
+export type AgentAvailability = 'ready' | 'history_only' | 'planned' | 'shared' | 'unknown';
 
 /** The backend agent list plus Candra from the roster (not chattable yet). */
 export function directAgents(agents: WorkspaceAgent[]): { id: string; availability: AgentAvailability; description?: string }[] {
   const list: { id: string; availability: AgentAvailability; description?: string }[] = agents.map(a => ({
     id: a.id,
-    availability: a.id === CANDRA_ID ? 'soon' : a.status,
+    availability: a.id === CANDRA_ID ? 'shared' : a.status,
     description: a.description,
   }));
   if (!list.some(a => a.id === CANDRA_ID) && workspace.roster.some(r => r.id === CANDRA_ID)) {
-    list.unshift({ id: CANDRA_ID, availability: 'soon', description: 'Kepala Sales: meneliti prospek, menyusun draf, dan membalas WhatsApp.' });
+    list.unshift({ id: CANDRA_ID, availability: 'shared', description: 'Kepala Sales & relasi pelanggan: meneliti prospek, menyusun draf, dan menangani percakapan WhatsApp.' });
   }
   return list;
 }
 
 export function availabilityOf(agents: WorkspaceAgent[] | undefined, id: string | null | undefined): AgentAvailability {
   if (!id) return 'unknown';
-  if (id === CANDRA_ID) return 'soon';
+  if (id === CANDRA_ID) return 'shared';
   const found = agents?.find(a => a.id === id);
   return found ? found.status : 'unknown';
 }
@@ -40,7 +40,7 @@ export const availabilityText: Record<AgentAvailability, string> = {
   ready: 'Siap',
   history_only: 'Telegram',
   planned: 'Belum aktif',
-  soon: 'Segera',
+  shared: 'Telegram + web',
   unknown: 'Tidak tersedia',
 };
 
@@ -51,7 +51,7 @@ export function blockedReason(availability: AgentAvailability, id: string | null
     case 'ready': return null;
     case 'history_only': return `${name} bekerja lewat Telegram — riwayat saja. Kirim tugas ke ${name} dari Telegram.`;
     case 'planned': return `${name} belum diaktifkan. Thread ini bisa dibaca, tetapi belum bisa menerima pesan.`;
-    case 'soon': return CANDRA_NOTE;
+    case 'shared': return null;
     default: return 'Agent ini tidak tersedia untuk chat dari workspace.';
   }
 }

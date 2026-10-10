@@ -2,7 +2,7 @@ import { get, post } from './api';
 import type {
   BridgeStatus, ChatConversation, ChatSnapshot, Control, ConversationDetail, ConversationList, InboxView,
   Metrics, ReviewItem, ReviewPolicy, UsageTotal, WhatsAppLink, WorkBatch, WorkJobs, WorkflowChange, WorkflowProposal,
-  WorkerSignal, WorkflowState, WorkspaceState,
+  CandraSession, WorkerSignal, WorkflowState, WorkspaceState,
 } from './types';
 
 export interface Auth { authenticated: boolean; user?: { name?: string } | null }
@@ -38,6 +38,9 @@ export interface DataSource {
   decideProposal(id: string, action: 'approve' | 'reject', reason?: string): Promise<WorkflowProposal>;
   markApplied(id: string): Promise<WorkflowProposal>;
   worker(): Promise<WorkerSignal>;
+  /** Candra's Telegram DM session, shared with the web (one history, one memory). */
+  candra(): Promise<CandraSession>;
+  sendCandra(content: string): Promise<void>;
 }
 
 const enc = encodeURIComponent;
@@ -78,4 +81,6 @@ export const liveSource: DataSource = {
   decideProposal: (id, action, reason) => post<WorkflowProposal>(`/v2/workflow/proposals/${enc(id)}/decision`, { action, reason: reason ?? '' }),
   markApplied: id => post<WorkflowProposal>(`/v2/workflow/proposals/${enc(id)}/applied`),
   worker: () => get<WorkerSignal>('/v2/worker'),
+  candra: () => get<CandraSession>('/v2/candra'),
+  sendCandra: async content => { await post('/v2/candra/messages', { content }); },
 };

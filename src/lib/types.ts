@@ -308,6 +308,16 @@ export interface WorkflowProposal {
   applied_at?: number | null;
 }
 
+export interface CandraMessage { id: string; role: 'user' | 'assistant'; content: string; created_at: number | string | null; source?: string | null }
+export interface CandraSession {
+  available: boolean;
+  reason: string | null;
+  detail: string | null;
+  session_id: string | null;
+  messages: CandraMessage[];
+  turn: { running: boolean; started_at: number | null; error: string | null; finished_at: number | null };
+}
+
 export interface WorkerSignal { last_activity_at: number | null; by_status: Record<string, number>; identities: number }
 
 export interface WorkflowState {

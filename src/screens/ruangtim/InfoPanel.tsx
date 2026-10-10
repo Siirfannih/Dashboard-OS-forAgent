@@ -6,7 +6,7 @@ import type { ChatSnapshot, WorkspaceAgent } from '../../lib/types';
 import { activity14, availabilityOf, availabilityText, membersOf, threadStatus, type AgentAvailability } from './model';
 
 const availabilityTone: Record<AgentAvailability, Tone> = {
-  ready: 'ok', history_only: 'gray', planned: 'gray', soon: 'info', unknown: 'unknown',
+  ready: 'ok', history_only: 'gray', planned: 'gray', shared: 'ok', unknown: 'unknown',
 };
 
 export function AgentStatusPill({ availability }: { availability: AgentAvailability }) {

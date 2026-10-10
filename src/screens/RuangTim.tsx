@@ -6,6 +6,7 @@ import { useResource, useSource, useToast } from '../lib/data';
 import { ago, dateTime } from '../lib/format';
 import { go, href } from '../lib/router';
 import type { ChatConversation, WorkspaceAgent } from '../lib/types';
+import { CandraThread } from './ruangtim/CandraThread';
 import { Composer, Notice } from './ruangtim/Composer';
 import { AgentStatusPill } from './ruangtim/InfoPanel';
 import {
@@ -48,7 +49,8 @@ export function RuangTimPage({ id }: { id?: string }) {
 
       <section className={`min-w-0 flex-1 bg-card ${id ? 'flex' : 'hidden md:flex'}`} aria-label="Isi thread">
         {threadId && <Thread id={threadId} agents={agents} onChanged={onChanged} />}
-        {agentView && (
+        {agentView === CANDRA_ID && <CandraThread />}
+        {agentView && agentView !== CANDRA_ID && (
           <AgentPane
             id={agentView}
             agents={agents}
@@ -256,7 +258,7 @@ function StartView({ agents, loading, onCreated }: { agents: WorkspaceAgent[] | 
 }
 
 function shortNote(a: AgentAvailability): string {
-  if (a === 'soon') return 'Chat langsung sedang disiapkan. Tugaskan lewat Keputusan dan Percakapan.';
+  if (a === 'shared') return 'Satu sesi dengan Telegram.';
   if (a === 'history_only') return 'Bekerja lewat Telegram — riwayat saja.';
   if (a === 'planned') return 'Belum diaktifkan.';
   return 'Tidak tersedia untuk chat.';

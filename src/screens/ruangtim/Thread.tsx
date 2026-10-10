@@ -157,7 +157,7 @@ function ThreadHeader({ title, crumb, onInfo }: { title: string; crumb?: ReactNo
   );
 }
 
-function MessageList({ chat }: { chat: ChatSnapshot }) {
+export function MessageList({ chat }: { chat: ChatSnapshot }) {
   let lastDay = '';
   let prev: ChatMessage | null = null;
   const rows = chat.messages.map(m => {
