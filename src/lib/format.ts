@@ -98,3 +98,10 @@ export function parseJson<T>(value: unknown): T | null {
 export function bubbles(body: string): string[] {
   return body.split(/\n\s*\n/).map(part => part.trim()).filter(Boolean);
 }
+
+/** Hermes agents attach files as a "MEDIA:/abs/path" line. Splits them out of the visible text. */
+export function splitMedia(content: string): { text: string; media: string[] } {
+  const media: string[] = [];
+  const text = content.replace(/^\s*MEDIA:(\/\S+)\s*$/gm, (_m, path: string) => { media.push(path); return ''; }).replace(/\n{3,}/g, '\n\n').trim();
+  return { text, media };
+}

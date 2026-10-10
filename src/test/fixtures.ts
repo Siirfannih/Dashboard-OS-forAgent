@@ -115,7 +115,7 @@ const candra: CandraSession = {
   available: true, reason: null, detail: null, session_id: 's1',
   messages: [
     { id: 'k1', role: 'user', content: LONG_TOKEN, created_at: null, source: null },
-    { id: 'k2', role: 'assistant', content: `${LONG_TEXT}\n\n${HOSTILE}`, created_at: 'bukan tanggal', source: 'platform_baru' },
+    { id: 'k2', role: 'assistant', content: `${LONG_TEXT}\n\n${HOSTILE}\n\nMEDIA:/x/../../etc/${LONG_TOKEN}.md`, created_at: 'bukan tanggal', source: 'platform_baru' },
   ],
   turn: { running: false, started_at: null, error: LONG_TOKEN, finished_at: null },
 };
@@ -124,6 +124,7 @@ const base = {
   auth: async () => ({ authenticated: true }),
   login: noop, logout: noop, approve: noop, decline: noop, setControl: noop, ownerMessage: noop, addNote: noop, markSeen: noop,
   sendChat: noop, sendCandra: noop,
+  candraMediaUrl: () => null, candraMediaText: async () => '',
 };
 
 /** Real-shaped data at its worst. */

@@ -68,7 +68,7 @@ export function CandraThread() {
           {res.error && !session && <ErrorBanner message={res.error} onRetry={res.reload} />}
           {session?.available && <div className="mb-2"><Notice>{CANDRA_NOTE}</Notice></div>}
           {unavailable && <Notice tone="warn">{reasonText[session.reason ?? ''] ?? session.detail ?? 'Candra belum bisa diajak bicara dari web.'}</Notice>}
-          {chat && chat.messages.length > 0 && <MessageList chat={chat} />}
+          {chat && chat.messages.length > 0 && <MessageList chat={chat} withMedia />}
           {session?.available && chat?.messages.length === 0 && (
             <div className="py-10 text-center">
               <div className="font-display text-[17px] font-semibold">Mau bahas apa dengan Candra?</div>

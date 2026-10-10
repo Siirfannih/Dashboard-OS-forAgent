@@ -295,6 +295,7 @@ const candraSession: CandraSession = {
   messages: [
     { id: 'cd1', role: 'user', content: 'Candra, ringkas hasil semalam.', created_at: now() - 5 * H, source: 'telegram' },
     { id: 'cd2', role: 'assistant', content: 'Semalam Worker Riset memeriksa **21 bisnis**: 19 diterima, 1 perlu revisi sumber nomor, 1 terblokir karena nomornya tidak cocok dengan Maps. Dari yang diterima, aku siapkan **3 pesan pertama** dan **2 follow-up**. Follow-up untuk Nusa Dua Kids Clinic sudah kamu setujui dan akan terkirim di jam kirim.', created_at: now() - 4.9 * H, source: 'telegram' },
+    { id: 'cd3b', role: 'assistant', content: 'Ini ringkasan prospek siap kontak untuk review pagi ini.\n\nMEDIA:/demo/candra/workspaces/prospek-siap-kontak.md', created_at: now() - 4.8 * H, source: 'telegram' },
     { id: 'cd3', role: 'user', content: 'Klinik Lumina tanya harga 2 cabang. Gimana sebaiknya?', created_at: now() - 0.5 * H, source: 'web' },
     { id: 'cd4', role: 'assistant', content: 'Harga multi-cabang belum ada di daftar yang disetujui, jadi percakapannya kutahan. Saranku: tawarkan panggilan 15 menit dengan pemiliknya untuk melihat kebutuhan tiap cabang, lalu kirim penawaran tertulis. Kalau setuju, balas sendiri dari Percakapan atau minta aku siapkan drafnya.', created_at: now() - 0.48 * H, source: 'web' },
   ],
@@ -474,6 +475,11 @@ export const demoSource: DataSource = {
     identities: 1,
   }),
   candra: async () => { await wait(); return structuredClone(candraSession); },
+  candraMediaUrl: () => null,
+  candraMediaText: async () => {
+    await wait();
+    return '# Prospek siap kontak — contoh\n\n| Bisnis | Kota | Masalah terbukti | Draf |\n|---|---|---|---|\n| Rumah Senyum Dental | Sanur | Halaman layanan 404 | ob_demo1 |\n| Padma Dental Studio | Renon | SSL kedaluwarsa | ob_demo2 |\n| Kuta Laser Skin | Kuta | Nomor WhatsApp tidak cocok | ob_demo3 |\n\n**Catatan:** semua bukti dicek semalam. (Data demo fiktif.)';
+  },
   sendCandra: async content => {
     await wait(300);
     if (candraSession.turn.running) throw new Error('Candra masih membalas pesan sebelumnya.');

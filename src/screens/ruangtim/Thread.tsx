@@ -3,9 +3,10 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { AgentAvatar, ErrorBanner, IconButton, Modal, Skeleton } from '../../components/ui';
 import { agent } from '../../config/workspace';
 import { useResource, useSource, useToast } from '../../lib/data';
-import { clock, dayLabel, toDate } from '../../lib/format';
+import { clock, dayLabel, splitMedia, toDate } from '../../lib/format';
 import { go } from '../../lib/router';
 import type { ChatMessage, ChatSnapshot, WorkspaceAgent } from '../../lib/types';
+import { Attachments } from './Attachments';
 import { Composer, Notice, RichText } from './Composer';
 import { InfoPanel } from './InfoPanel';
 import { availabilityOf, blockedReason, isActiveRun, membersOf } from './model';
@@ -157,7 +158,8 @@ function ThreadHeader({ title, crumb, onInfo }: { title: string; crumb?: ReactNo
   );
 }
 
-export function MessageList({ chat }: { chat: ChatSnapshot }) {
+/** `withMedia`: render Hermes "MEDIA:" lines as attachment cards (Candra's shared session). */
+export function MessageList({ chat, withMedia = false }: { chat: ChatSnapshot; withMedia?: boolean }) {
   let lastDay = '';
   let prev: ChatMessage | null = null;
   const rows = chat.messages.map(m => {
@@ -197,7 +199,10 @@ export function MessageList({ chat }: { chat: ChatSnapshot }) {
                     <span className="text-[12px] text-muted">{agent(author).title} · <span className="tabular">{clock(m.created_at)}</span></span>
                   </div>
                 )}
-                <RichText text={m.content} />
+                {(() => {
+                  const { text, media } = withMedia ? splitMedia(m.content) : { text: m.content, media: [] as string[] };
+                  return <>{text && <RichText text={text} />}{media.length > 0 && <Attachments paths={media} />}</>;
+                })()}
               </div>
             </article>
           )}

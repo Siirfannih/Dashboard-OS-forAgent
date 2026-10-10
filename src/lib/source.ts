@@ -41,6 +41,9 @@ export interface DataSource {
   /** Candra's Telegram DM session, shared with the web (one history, one memory). */
   candra(): Promise<CandraSession>;
   sendCandra(content: string): Promise<void>;
+  /** Same-origin URL for a file Candra shared in the session (null when not previewable here). */
+  candraMediaUrl(path: string, download?: boolean): string | null;
+  candraMediaText(path: string): Promise<string>;
 }
 
 const enc = encodeURIComponent;
@@ -83,4 +86,10 @@ export const liveSource: DataSource = {
   worker: () => get<WorkerSignal>('/v2/worker'),
   candra: () => get<CandraSession>('/v2/candra'),
   sendCandra: async content => { await post('/v2/candra/messages', { content }); },
+  candraMediaUrl: (path, download = false) => `/api/v2/candra/media?path=${enc(path)}${download ? '&download=true' : ''}`,
+  candraMediaText: async path => {
+    const response = await fetch(`/api/v2/candra/media?path=${enc(path)}`, { credentials: 'same-origin' });
+    if (!response.ok) throw new Error(response.status === 404 ? 'Lampiran tidak ditemukan di server.' : 'Lampiran tidak bisa dibuka.');
+    return response.text();
+  },
 };
