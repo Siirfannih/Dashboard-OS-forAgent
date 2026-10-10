@@ -120,7 +120,7 @@ function EvidenceAge({ item, policy }: { item: ReviewItem; policy: ReviewPolicy 
     <div className="mt-3 flex gap-2 rounded-lg border border-warn-line bg-warn-soft px-3 py-2 text-[13px] text-warn">
       <TriangleAlert size={15} className="mt-0.5 shrink-0" aria-hidden />
       <span>
-        <b className="font-semibold">Bukti sudah {ago(item.study_updated_at)}</b>, lebih dari batas {limit} jam. Pesan pertama atau tindak lanjut akan ditahan saat jam kirim sampai riset diperbarui.
+        <b className="font-semibold">Bukti sudah {ago(item.study_updated_at)}</b>, lebih dari batas {limit} jam. Kalau disetujui sekarang, sistem langsung mencabut persetujuannya. Minta Candra memperbarui riset dulu.
       </span>
     </div>
   );

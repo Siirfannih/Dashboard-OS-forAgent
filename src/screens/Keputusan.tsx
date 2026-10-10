@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { BusinessAvatar, Button, Card, DataAge, EmptyState, ErrorBanner, Overline, Pill, Skeleton } from '../components/ui';
 import { senderLabel, workspace } from '../config/workspace';
 import { useResource, useSource, useToast } from '../lib/data';
-import { ago, bubbles, dateTime, maskPhone, parseJson } from '../lib/format';
+import { ago, ageHours, bubbles, dateTime, maskPhone, parseJson } from '../lib/format';
 import { go, href } from '../lib/router';
 import type { ReviewItem, ReviewPolicy, StudyContent } from '../lib/types';
 import { WhyEligible } from './keputusan/Evidence';
@@ -20,6 +20,23 @@ const isTest = (item: ReviewItem) => item.run_mode === 'review_only';
 const segmentOf = (study: StudyContent | null) => (typeof study?.bisnis?.jenis === 'string' ? study.bisnis.jenis : null);
 
 /** Why approve is not possible right now, or null when it is. Mirrors sales/review.py rules. */
+/** The send gate re-checks evidence at send time (backend: 24 h) and silently revokes stale approvals. */
+const EVIDENCE_MAX_HOURS = 24;
+
+export function isEvidenceStale(item: ReviewItem): boolean {
+  if (item.run_mode === 'review_only' || !['first', 'followup'].includes(item.kind)) return false;
+  const hours = ageHours(item.study_updated_at);
+  return hours !== null && hours > EVIDENCE_MAX_HOURS;
+}
+
+/** Why the send gate put an approved draft back here (outbox.error written by the dispatcher). */
+export const REVOKED_REASON: Record<string, string> = {
+  study_stale: 'bukti riset sudah lebih dari 24 jam',
+  approval_expired: 'persetujuan melewati batas waktu',
+  approval_changed: 'isi draf, nomor, atau pengirim berubah setelah disetujui',
+  approval_required: 'draf belum punya persetujuan yang sah',
+};
+
 function approveBlock(item: ReviewItem): string | null {
   if (item.status === 'needs_revision') return 'Revisi sudah diminta. Candra sedang menulis versi baru — kamu akan meninjaunya di sini.';
   if (APPROVED.includes(item.status)) return 'Draf ini sudah disetujui dan ada di antrean kirim.';
@@ -28,6 +45,7 @@ function approveBlock(item: ReviewItem): string | null {
   if (item.control === 'HUMAN_CONTROLLED') return 'Kamu sedang memegang percakapan ini, jadi draf AI tidak bisa disetujui.';
   if (item.control === 'DO_NOT_CONTACT') return 'Prospek ini minta tidak dihubungi. Draf tidak bisa disetujui.';
   if (item.control !== 'AUTO') return 'Status kendali percakapan tidak diketahui, jadi draf belum bisa disetujui.';
+  if (isEvidenceStale(item)) return `Bukti riset sudah ${ago(item.study_updated_at)}. Sistem akan langsung mencabut persetujuan untuk bukti lebih dari ${EVIDENCE_MAX_HOURS} jam. Minta Candra memperbarui riset prospek ini dulu.`;
   return null;
 }
 
@@ -307,6 +325,11 @@ function Detail({ item, policy, busy, onApprove, onRevise }: {
             </div>
           </div>
 
+          {item.status === 'draft' && item.error && REVOKED_REASON[item.error] && (
+            <Notice tone="warn" icon={<TriangleAlert size={15} />}>
+              <b className="font-semibold">Persetujuan sebelumnya dicabut otomatis</b> karena {REVOKED_REASON[item.error]}. Pesan tidak terkirim.{item.error === 'study_stale' ? ' Minta Candra memperbarui riset, lalu tinjau lagi.' : ' Tinjau ulang draf ini.'}
+            </Notice>
+          )}
           {item.status === 'needs_revision' && (
             <Notice tone="info" icon={<Hourglass size={15} />}>
               <b className="font-semibold">Revisi diminta.</b> Candra sedang menulis versi baru dari draf ini. Versi lama tidak bisa disetujui.
@@ -399,8 +422,8 @@ function Kbd({ children }: { children: ReactNode }) {
   return <kbd className="ml-1 hidden rounded border border-current/30 px-1 font-mono text-[12px] leading-4 opacity-80 lg:inline">{children}</kbd>;
 }
 
-function Notice({ tone, icon, children }: { tone: 'info' | 'ok' | 'gray'; icon: ReactNode; children: ReactNode }) {
-  const cls = { info: 'border-info/15 bg-info-soft text-info', ok: 'border-ok/15 bg-ok-soft text-ok', gray: 'border-line bg-card text-ink-soft' }[tone];
+function Notice({ tone, icon, children }: { tone: 'info' | 'ok' | 'gray' | 'warn'; icon: ReactNode; children: ReactNode }) {
+  const cls = { info: 'border-info/15 bg-info-soft text-info', ok: 'border-ok/15 bg-ok-soft text-ok', gray: 'border-line bg-card text-ink-soft', warn: 'border-warn-line bg-warn-soft text-warn' }[tone];
   return <div className={`flex gap-2 rounded-xl border px-4 py-3 text-[13px] ${cls}`}><span className="mt-0.5 shrink-0" aria-hidden>{icon}</span><div className="min-w-0">{children}</div></div>;
 }
 
