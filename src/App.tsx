@@ -20,12 +20,22 @@ type Boot = { phase: 'loading' } | { phase: 'login'; message?: string } | { phas
 
 const DEMO_KEY = 'jadisatu.demo';
 
+// Demo is per tab (sessionStorage) so it never sticks to the real workspace.
 function readDemoFlag(): boolean {
   try {
-    return new URLSearchParams(window.location.search).has('demo') || window.localStorage.getItem(DEMO_KEY) === '1';
+    window.localStorage.removeItem(DEMO_KEY); // clear the old persistent flag from earlier builds
+    return new URLSearchParams(window.location.search).has('demo') || window.sessionStorage.getItem(DEMO_KEY) === '1';
   } catch {
     return false;
   }
+}
+
+export function exitDemo() {
+  try { window.sessionStorage.removeItem(DEMO_KEY); window.localStorage.removeItem(DEMO_KEY); } catch { /* ignore */ }
+  const url = new URL(window.location.href);
+  url.searchParams.delete('demo');
+  url.hash = '';
+  window.location.replace(url.toString());
 }
 
 export default function App() {
@@ -52,7 +62,7 @@ export default function App() {
   }, []);
 
   const useDemo = () => {
-    try { window.localStorage.setItem(DEMO_KEY, '1'); } catch { /* storage unavailable: demo lasts this visit */ }
+    try { window.sessionStorage.setItem(DEMO_KEY, '1'); } catch { /* storage unavailable: demo lasts this visit */ }
     setBoot({ phase: 'ready', source: demoSource });
   };
 
@@ -75,10 +85,7 @@ export default function App() {
       <ToastProvider>
         <Workspace
           onLogout={async () => {
-            if (boot.source.kind === 'demo') {
-              try { window.localStorage.removeItem(DEMO_KEY); } catch { /* ignore */ }
-              return start();
-            }
+            if (boot.source.kind === 'demo') return exitDemo();
             await liveSource.logout().catch(() => undefined);
             setBoot({ phase: 'login' });
           }}

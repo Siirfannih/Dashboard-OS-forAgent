@@ -150,7 +150,11 @@ export function Shell({ page, children, onOpenGuide, guideProgress, onLogout }: 
             <span className="truncate text-[13px] font-semibold">{pageTitle[page]}</span>
           </div>
           <div className="flex items-center gap-2">
-            {source.kind === 'demo' && <Pill tone="info">Demo · data fiktif</Pill>}
+            {source.kind === 'demo' && (
+              <button onClick={onLogout} className="inline-flex items-center gap-1.5 rounded-full bg-info-soft px-2.5 text-[12px] font-medium leading-6 text-info hover:underline" title="Kembali ke halaman masuk untuk melihat data asli">
+                Demo · data fiktif <span aria-hidden>·</span> Keluar dari demo
+              </button>
+            )}
             {paused === true && <Pill tone="warn" dot title="Tidak ada pesan keluar sampai dilanjutkan">Pengiriman dijeda</Pill>}
             {paused === false && <Pill tone="ok" dot>Pengiriman berjalan</Pill>}
             {paused === undefined && signals.loadedAt && <Pill tone="unknown">Status kirim tidak diketahui</Pill>}
