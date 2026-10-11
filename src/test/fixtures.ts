@@ -168,6 +168,8 @@ export const extremeSource: DataSource = {
   proposeWorkflow: async () => { throw new ApiError('Alur sudah berubah', 409); },
   decideProposal: async () => { throw new ApiError('Konflik', 409); },
   markApplied: async () => { throw new ApiError('Konflik', 409); },
+  simulateWorkflow: async () => { throw new ApiError('Konflik', 409); },
+  revertWorkflow: async () => { throw new ApiError('Konflik', 409); },
   worker: async () => ({ last_activity_at: null, by_status: { status_baru: 3 }, identities: 0 }),
   candra: async () => structuredClone(candra),
 };

@@ -5,7 +5,7 @@
 import type { DataSource } from './source';
 import type {
   CandraSession, ChatSnapshot, Control, ConversationDetail, InboxView, ReviewItem, SalesConversation, SalesEvent,
-  SalesMessage, Stage, Study, WorkJob, WorkflowProposal, WorkflowState, WorkspaceState,
+  SalesMessage, Stage, Study, WorkJob, WorkflowProposal, WorkflowSimulation, WorkflowState, WorkspaceState,
 } from './types';
 
 const now = () => Date.now() / 1000;
@@ -467,6 +467,36 @@ export const demoSource: DataSource = {
     workflowState.version += 1;
     proposal.status = 'applied';
     proposal.applied_at = now();
+    return structuredClone(proposal);
+  },
+  simulateWorkflow: async input => {
+    await wait(300);
+    const result = { ...input.values, ...Object.fromEntries(input.changes.map(c => [`${c.node_id}.${c.field}`, c.to])) };
+    const issues: WorkflowSimulation['issues'] = [];
+    if (input.base_version !== workflowState.version) issues.push({ level: 'error', node_id: 'workflow', field: 'version', message: `Alur sudah di v${workflowState.version}; muat ulang dulu.` });
+    const hhmm = (v?: string) => (v && /^([01]\d|2[0-3]):[0-5]\d$/.test(v) ? Number(v.slice(0, 2)) * 60 + Number(v.slice(3)) : null);
+    const start = hhmm(result['approval.limit.window_start']); const end = hhmm(result['approval.limit.window_end']);
+    if (start !== null && end !== null && end <= start) issues.push({ level: 'error', node_id: 'approval', field: 'limit.window_end', message: 'Jendela review harus selesai setelah dimulai.' });
+    return { ok: !issues.some(i => i.level === 'error'), version: workflowState.version, issues, result };
+  },
+  revertWorkflow: async (target, note) => {
+    await wait(300);
+    if (target >= workflowState.version) throw new Error(`Pilih versi sebelum v${workflowState.version}`);
+    const applied = workflowState.proposals.filter(p => p.status === 'applied').sort((a, b) => a.base_version - b.base_version);
+    const at: Record<string, string> = {}; const original: Record<string, string> = {};
+    for (const p of applied) for (const c of p.changes) {
+      const key = `${c.node_id}.${c.field}`;
+      original[key] ??= c.from;
+      if (p.base_version < target) at[key] = c.to;
+    }
+    const changes = Object.entries(workflowState.overrides).flatMap(([key, current]) => {
+      const wanted = at[key] ?? original[key];
+      const [node_id, ...rest] = key.split('.');
+      return wanted && wanted !== current ? [{ node_id, field: rest.join('.'), from: current, to: wanted }] : [];
+    });
+    if (!changes.length) throw new Error(`v${target} sama dengan versi aktif`);
+    const proposal: WorkflowProposal = { id: `wp_${Date.now()}`, status: 'pending', created_at: now(), base_version: workflowState.version, changes, note: `Kembalikan ke v${target}. ${note}` };
+    workflowState.proposals.unshift(proposal);
     return structuredClone(proposal);
   },
   worker: async () => ({

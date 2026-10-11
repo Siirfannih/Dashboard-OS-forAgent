@@ -1,10 +1,10 @@
-import { ArrowRight, CircleAlert, ExternalLink, GitPullRequestArrow, X } from 'lucide-react';
+import { ArrowRight, CircleAlert, CircleCheck, ExternalLink, FlaskConical, GitPullRequestArrow, History, TriangleAlert, X } from 'lucide-react';
 import { useState } from 'react';
 import { AgentAvatar, Button, EmptyState, IconButton, Modal, Pill, inputClass } from '../../components/ui';
 import { useSource, useToast } from '../../lib/data';
 import { dateTime } from '../../lib/format';
 import { href } from '../../lib/router';
-import type { WorkflowChange, WorkflowProposal } from '../../lib/types';
+import type { WorkflowChange, WorkflowProposal, WorkflowSimulation } from '../../lib/types';
 import { describeChange, isConflict, proposalStatus } from './model';
 
 export function ChangeList({ changes, compact }: { changes: WorkflowChange[]; compact?: boolean }) {
@@ -27,11 +27,13 @@ export function ChangeList({ changes, compact }: { changes: WorkflowChange[]; co
 }
 
 /** Step 1: owner writes the reason and submits the draft as a proposal. */
-export function SubmitModal({ open, onClose, changes, baseVersion, onSubmitted, onReload }: {
+export function SubmitModal({ open, onClose, changes, baseVersion, values, onSubmitted, onReload }: {
   open: boolean;
   onClose: () => void;
   changes: WorkflowChange[];
   baseVersion: number;
+  /** Effective values the owner sees now ("node.field" → text), so the dry run checks the whole picture. */
+  values: Record<string, string>;
   onSubmitted: (proposal: WorkflowProposal) => void;
   onReload: () => Promise<void>;
 }) {
@@ -40,7 +42,24 @@ export function SubmitModal({ open, onClose, changes, baseVersion, onSubmitted, 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<{ text: string; conflict: boolean } | null>(null);
   const [touched, setTouched] = useState(false);
+  const [simulation, setSimulation] = useState<WorkflowSimulation | null>(null);
+  const [simulating, setSimulating] = useState(false);
+  const [simError, setSimError] = useState<string | null>(null);
   const noteMissing = !note.trim();
+
+  const simulate = async () => {
+    setSimulating(true);
+    setSimError(null);
+    try {
+      const after = { ...values, ...Object.fromEntries(changes.map(c => [`${c.node_id}.${c.field}`, c.to])) };
+      setSimulation(await source.simulateWorkflow({ base_version: baseVersion, changes, values: after }));
+    } catch (exc) {
+      setSimulation(null);
+      setSimError(`Simulasi gagal dijalankan. ${exc instanceof Error ? exc.message : ''}`);
+    } finally {
+      setSimulating(false);
+    }
+  };
 
   const submit = async () => {
     setTouched(true);
@@ -74,6 +93,9 @@ export function SubmitModal({ open, onClose, changes, baseVersion, onSubmitted, 
       footer={
         <>
           <Button onClick={onClose}>Kembali ke draf</Button>
+          <Button onClick={simulate} disabled={simulating || changes.length === 0}>
+            <FlaskConical size={15} aria-hidden /> {simulating ? 'Menyimulasikan…' : 'Simulasikan'}
+          </Button>
           <Button variant="primary" onClick={submit} disabled={busy || changes.length === 0}>
             {busy ? 'Mengajukan…' : `Ajukan ${changes.length} perubahan`}
           </Button>
@@ -82,6 +104,7 @@ export function SubmitModal({ open, onClose, changes, baseVersion, onSubmitted, 
     >
       <p className="mb-3 text-[13px] text-ink-soft">Perubahan dari alur aktif v{baseVersion}:</p>
       <ChangeList changes={changes} />
+      {(simulation || simError) && <SimulationResult simulation={simulation} error={simError} />}
       <label htmlFor="wf-note" className="mb-1.5 mt-4 block text-[13px] font-medium">Alasan perubahan <span className="text-danger">*</span></label>
       <textarea
         id="wf-note"
@@ -217,10 +240,67 @@ export function PendingPanel({ proposals, recent, onDecided, onDismissRecent, on
   );
 }
 
-export function HistoryModal({ open, onClose, proposals }: { open: boolean; onClose: () => void; proposals: WorkflowProposal[] }) {
+function SimulationResult({ simulation, error }: { simulation: WorkflowSimulation | null; error: string | null }) {
+  if (error) return <div role="status" className="mt-3 rounded-lg border border-line bg-surface px-3 py-2.5 text-[13px] text-ink-soft">{error}</div>;
+  if (!simulation) return null;
+  if (!simulation.issues.length) {
+    return (
+      <div role="status" className="mt-3 flex items-center gap-2 rounded-lg border border-ok/20 bg-ok-soft px-3 py-2.5 text-[13px] text-ok">
+        <CircleCheck size={15} aria-hidden /> Lolos simulasi: aturan jam, batas, dan langkah pengaman terpenuhi. Tidak ada yang dikirim atau diubah.
+      </div>
+    );
+  }
+  return (
+    <ul role="status" aria-label="Hasil simulasi" className="mt-3 flex flex-col gap-1.5">
+      {simulation.issues.map((i, n) => (
+        <li key={n} className={`flex gap-2 rounded-lg border px-3 py-2 text-[13px] leading-5 ${i.level === 'error' ? 'border-danger/20 bg-danger-soft text-danger' : 'border-warn-line bg-warn-soft text-warn'}`}>
+          {i.level === 'error' ? <CircleAlert size={15} className="mt-0.5 shrink-0" aria-hidden /> : <TriangleAlert size={15} className="mt-0.5 shrink-0" aria-hidden />}
+          <span className="min-w-0">{i.message}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** Versions that existed: v1, plus one per applied proposal (base_version + 1). */
+function pastVersions(proposals: WorkflowProposal[], version: number): number[] {
+  const made = new Set([1, ...proposals.filter(p => p.status === 'applied').map(p => p.base_version + 1)]);
+  return [...made].filter(v => v < version).sort((a, b) => b - a);
+}
+
+export function HistoryModal({ open, onClose, proposals, version, onReverted }: {
+  open: boolean; onClose: () => void; proposals: WorkflowProposal[]; version: number; onReverted: (proposal: WorkflowProposal) => void;
+}) {
+  const source = useSource();
+  const toast = useToast();
+  const [busy, setBusy] = useState<number | null>(null);
   const sorted = [...proposals].sort((a, b) => b.created_at - a.created_at);
+  const past = pastVersions(proposals, version);
+  const revert = async (target: number) => {
+    setBusy(target);
+    try {
+      const proposal = await source.revertWorkflow(target, 'Diminta dari riwayat proposal.');
+      toast('ok', `Proposal kembali ke v${target} dibuat. Setujui untuk mengirimnya ke Angga.`);
+      onReverted(proposal);
+    } catch (exc) {
+      toast('error', `Belum bisa kembali ke v${target}. ${exc instanceof Error ? exc.message : ''}`);
+    } finally {
+      setBusy(null);
+    }
+  };
   return (
     <Modal open={open} onClose={onClose} title="Riwayat proposal" width={600}>
+      {past.length > 0 && (
+        <div className="mb-4 rounded-xl border border-line bg-surface p-3.5">
+          <div className="mb-2 flex items-center gap-2 text-[13px] font-medium"><History size={15} aria-hidden /> Versi sebelumnya</div>
+          <p className="mb-2.5 text-[12px] text-muted">Kembali ke versi lama membuat proposal biasa: kamu setujui, Angga menerapkan. Alur aktif v{version} tidak berubah sebelum itu.</p>
+          <div className="flex flex-wrap gap-2">
+            {past.map(v => (
+              <Button key={v} size="sm" onClick={() => revert(v)} disabled={busy !== null}>{busy === v ? 'Membuat proposal…' : `Kembalikan ke v${v}`}</Button>
+            ))}
+          </div>
+        </div>
+      )}
       {sorted.length === 0 ? (
         <EmptyState title="Belum ada proposal">Perubahan yang kamu ajukan dari mode Ubah akan muncul di sini beserta statusnya.</EmptyState>
       ) : (

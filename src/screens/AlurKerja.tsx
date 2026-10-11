@@ -68,6 +68,11 @@ export function AlurKerjaPage({ id }: { id?: string }) {
 
   const editing = mode === 'edit' && canEdit && !isMobile;
   const changes = useMemo(() => computeChanges(draft, overrides), [draft, overrides]);
+  const simValues = useMemo(() => Object.fromEntries(salesWorkflow.nodes.flatMap(node =>
+    ['host', ...(node.limits ?? []).map(l => `limit.${l.key}`)].flatMap(field => {
+      const value = currentValue(node, field, overrides);
+      return value === undefined ? [] : [[`${node.id}.${field}`, value]];
+    }))), [overrides]);
   const errors = useMemo(() => validateDraft(draft, overrides), [draft, overrides]);
   const hasErrors = Object.keys(errors).length > 0;
   const changedByNode = useMemo(() => {
@@ -117,6 +122,13 @@ export function AlurKerjaPage({ id }: { id?: string }) {
     setMode('view');
     setRecent(null);
     toast('ok', 'Proposal tersimpan. Periksa sekali lagi, lalu setujui untuk mengirimnya ke Angga.');
+    await wf.reload();
+  };
+
+  const onReverted = async (proposal: WorkflowProposal) => {
+    setHistoryOpen(false);
+    setRecent(null);
+    void proposal;
     await wf.reload();
   };
 
@@ -300,11 +312,12 @@ export function AlurKerjaPage({ id }: { id?: string }) {
           onClose={closeSubmit}
           changes={changes}
           baseVersion={version}
+          values={simValues}
           onSubmitted={onSubmitted}
           onReload={wf.reload}
         />
       )}
-      <HistoryModal open={historyOpen} onClose={closeHistory} proposals={proposals} />
+      <HistoryModal open={historyOpen} onClose={closeHistory} proposals={proposals} version={version ?? 1} onReverted={onReverted} />
     </div>
   );
 }

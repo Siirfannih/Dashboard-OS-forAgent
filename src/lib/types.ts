@@ -295,6 +295,9 @@ export interface FlowEdge { from: string; to: string; label?: string; dashed?: b
 
 export interface WorkflowChange { node_id: string; field: string; from: string; to: string }
 
+export interface WorkflowIssue { level: 'error' | 'warning'; node_id: string; field: string; message: string }
+export interface WorkflowSimulation { ok: boolean; version: number; issues: WorkflowIssue[]; result: Record<string, string> }
+
 export interface WorkflowProposal {
   id: string;
   base_version: number;
