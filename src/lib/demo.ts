@@ -477,6 +477,8 @@ export const demoSource: DataSource = {
     const hhmm = (v?: string) => (v && /^([01]\d|2[0-3]):[0-5]\d$/.test(v) ? Number(v.slice(0, 2)) * 60 + Number(v.slice(3)) : null);
     const start = hhmm(result['approval.limit.window_start']); const end = hhmm(result['approval.limit.window_end']);
     if (start !== null && end !== null && end <= start) issues.push({ level: 'error', node_id: 'approval', field: 'limit.window_end', message: 'Jendela review harus selesai setelah dimulai.' });
+    const deadline = hhmm(result['research.limit.deadline']);
+    if (deadline !== null && start !== null && deadline > start) issues.push({ level: 'error', node_id: 'research', field: 'limit.deadline', message: 'Riset harus selesai sebelum jendela review dimulai, agar draf siap saat kamu meninjau.' });
     return { ok: !issues.some(i => i.level === 'error'), version: workflowState.version, issues, result };
   },
   revertWorkflow: async (target, note) => {
