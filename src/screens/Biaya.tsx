@@ -28,8 +28,8 @@ export function BiayaPage(_props: { id?: string }) {
   const usage = useResource(s => s.usage(), [], 60_000);
   const batches = useResource(s => s.batches(), [], 60_000);
   const ops = useResource(async s => {
-    const [state, jobs] = await Promise.all([s.state(), s.jobs().catch(() => null)]);
-    return { system: state.system ?? null, jobs };
+    const [state, jobs, worker] = await Promise.all([s.state(), s.jobs().catch(() => null), s.worker().catch(() => null)]);
+    return { system: state.system ?? null, jobs, workerLast: worker?.last_activity_at ?? null };
   }, [], 60_000);
 
   return (
@@ -75,7 +75,7 @@ export function BiayaPage(_props: { id?: string }) {
           <h2 id="capacity-title" className="text-[16px] font-semibold">Kapasitas</h2>
           {ops.error && !ops.data && <ErrorBanner message={`Status server belum bisa dimuat. ${ops.error}`} onRetry={ops.reload} />}
           {!ops.data && !ops.error && <div className="grid grid-cols-1 gap-4 md:grid-cols-2"><Skeleton className="h-44" /><Skeleton className="h-44" /></div>}
-          {ops.data && <Capacity system={ops.data.system} jobs={ops.data.jobs?.items ?? null} />}
+          {ops.data && <Capacity system={ops.data.system} jobs={ops.data.jobs?.items ?? null} workerLast={ops.data.workerLast} />}
         </section>
       </div>
     </div>
@@ -203,7 +203,7 @@ function Meter({ icon, label, free, total, unit, freeLabel }: { icon: ReactNode;
   );
 }
 
-function Capacity({ system, jobs }: { system: SystemStatus | null; jobs: { status: string }[] | null }) {
+function Capacity({ system, jobs, workerLast }: { system: SystemStatus | null; jobs: { status: string }[] | null; workerLast: number | null }) {
   const memTotal = system?.memory?.total_mb;
   const memFree = system?.memory?.available_mb;
   const gb = (mb: number | null | undefined) => (mb === null || mb === undefined ? mb : mb / 1024);
@@ -248,9 +248,9 @@ function Capacity({ system, jobs }: { system: SystemStatus | null; jobs: { statu
         <div className="flex flex-col gap-2 border-t border-line-soft pt-3 text-[13px]">
           <div className="flex items-center justify-between gap-2">
             <span className="text-muted">PC Worker</span>
-            {system?.worker?.last_seen
-              ? <span>terakhir terlihat {ago(system.worker.last_seen)}</span>
-              : <Unknown>{system?.worker?.label || 'Belum ada sinyal'}</Unknown>}
+            {workerLast
+              ? <span>aktif terakhir {ago(workerLast)}</span>
+              : <Unknown>Belum ada sinyal</Unknown>}
           </div>
           <div className="flex items-center justify-between gap-2">
             <span className="text-muted">Perkiraan selesai</span>
