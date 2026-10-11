@@ -7,6 +7,7 @@ import { clock, dayLabel, splitMedia, toDate } from '../../lib/format';
 import { go } from '../../lib/router';
 import type { ChatMessage, ChatSnapshot, WorkspaceAgent } from '../../lib/types';
 import { Attachments } from './Attachments';
+import { ObjectCards } from './ObjectCards';
 import { Composer, Notice, RichText } from './Composer';
 import { InfoPanel } from './InfoPanel';
 import { availabilityOf, blockedReason, isActiveRun, membersOf } from './model';
@@ -120,7 +121,8 @@ export function Thread({ id, agents, onChanged, prefill }: {
               blocked={blocked}
               waiting={waiting}
               sending={sending}
-              placeholder={room ? 'Tulis pesan… sebut @engineer, @manda, atau @all' : `Tulis pesan untuk ${owner.displayName}…`}
+              placeholder={room ? 'Tulis pesan… ketik @ untuk menyebut anggota' : `Tulis pesan untuk ${owner.displayName}…`}
+              mentions={room ? [...readyMembers.map(m => ({ handle: m, label: `${agent(m).displayName} · ${agent(m).title}` })), { handle: 'all', label: 'Semua anggota' }] : undefined}
               hint={room ? <>Tanpa sebutan, pesan ke {owner.displayName}. Enter untuk kirim.</> : undefined}
               before={room && readyMembers.length > 1 ? (
                 <label className="flex items-center gap-2 text-[12px] text-muted">
@@ -201,7 +203,7 @@ export function MessageList({ chat, withMedia = false }: { chat: ChatSnapshot; w
                 )}
                 {(() => {
                   const { text, media } = withMedia ? splitMedia(m.content) : { text: m.content, media: [] as string[] };
-                  return <>{text && <RichText text={text} />}{media.length > 0 && <Attachments paths={media} />}</>;
+                  return <>{text && <RichText text={text} />}{author !== 'owner' && text && <ObjectCards text={text} />}{media.length > 0 && <Attachments paths={media} />}</>;
                 })()}
               </div>
             </article>
