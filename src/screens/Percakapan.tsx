@@ -27,6 +27,7 @@ export function PercakapanPage({ id }: { id?: string }) {
   const [q, setQ] = useState('');
   const [profileOpen, setProfileOpen] = useState(false);
   const [target, setTarget] = useState<Control | null>(null);
+  const [label, setLabel] = useState<string | null>(null);
 
   useEffect(() => {
     const t = window.setTimeout(() => setQ(query.trim()), 300);
@@ -52,6 +53,8 @@ export function PercakapanPage({ id }: { id?: string }) {
     source.markSeen(id).then(() => reloadList.current()).catch(() => undefined);
   }, [id, source]);
 
+  const labels = [...new Set((list.data?.items ?? []).flatMap(c => c.tags ?? []))].sort();
+  const shown = list.data && label && labels.includes(label) ? { ...list.data, items: list.data.items.filter(c => c.tags?.includes(label)) } : list.data;
   const refresh = () => { void detail.reload(); void list.reload(); };
 
   return (
@@ -98,7 +101,22 @@ export function PercakapanPage({ id }: { id?: string }) {
             )}
           </div>
         </div>
-        <ConversationItems list={list.data} loading={list.loading && !list.data} error={list.error} onRetry={list.reload} selected={id} view={view} q={q} />
+        {labels.length > 0 && (
+          <div role="group" aria-label="Filter label" className="flex flex-wrap gap-1.5 border-b border-line px-3 py-2">
+            {labels.map(t => (
+              <button
+                key={t}
+                type="button"
+                aria-pressed={label === t}
+                onClick={() => setLabel(label === t ? null : t)}
+                className={`max-w-[160px] truncate rounded-full border px-2.5 py-0.5 text-[12px] ${label === t ? 'border-accent bg-accent-soft text-accent' : 'border-line bg-surface text-ink-soft hover:bg-line-soft'}`}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+        )}
+        <ConversationItems list={shown} loading={list.loading && !list.data} error={list.error} onRetry={list.reload} selected={id} view={view} q={q} />
       </section>
 
       {/* Column 3 — thread */}
