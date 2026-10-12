@@ -1,10 +1,11 @@
 import { agent, workspace } from '../../config/workspace';
 import { toDate } from '../../lib/format';
-import type { ChatConversation, ChatMessage, ChatRun, ChatSnapshot, WorkspaceAgent } from '../../lib/types';
+import type { AgentLinkInfo, ChatConversation, ChatMessage, ChatRun, ChatSnapshot, WorkspaceAgent } from '../../lib/types';
 
-/** Candra talks through her own Telegram DM session; the web joins that same session. */
-export const CANDRA_ID = 'candra';
-export const CANDRA_NOTE = 'Satu sesi dengan Telegram: yang kamu tulis di sini juga Candra ingat saat kamu lanjut dari Telegram, dan sebaliknya.';
+/** Agent id used when the backend has no `/v2/agents` yet: only Candra is known to have a web link. */
+const FALLBACK_LINKED = 'candra';
+export const sessionNote = (name: string) =>
+  `Satu sesi dengan Telegram: yang kamu tulis di sini juga ${name} ingat saat kamu lanjut dari Telegram, dan sebaliknya.`;
 export const AGENT_PREFIX = 'agent:';
 
 export const SUGGESTIONS = [
@@ -14,24 +15,42 @@ export const SUGGESTIONS = [
   'Apa yang perlu aku putuskan hari ini?',
 ];
 
-export type AgentAvailability = 'ready' | 'history_only' | 'planned' | 'shared' | 'unknown';
+export type AgentAvailability = 'ready' | 'history_only' | 'planned' | 'shared' | 'disconnected' | 'unknown';
 
-/** The backend agent list plus Candra from the roster (not chattable yet). */
-export function directAgents(agents: WorkspaceAgent[]): { id: string; availability: AgentAvailability; description?: string }[] {
-  const list: { id: string; availability: AgentAvailability; description?: string }[] = agents.map(a => ({
-    id: a.id,
-    availability: a.id === CANDRA_ID ? 'shared' : a.status,
-    description: a.description,
-  }));
-  if (!list.some(a => a.id === CANDRA_ID) && workspace.roster.some(r => r.id === CANDRA_ID)) {
-    list.unshift({ id: CANDRA_ID, availability: 'shared', description: 'Kepala Sales & relasi pelanggan: meneliti prospek, menyusun draf, dan menangani percakapan WhatsApp.' });
-  }
-  return list;
+/** `/v2/agents` result as the screen holds it: undefined while loading, null when the endpoint failed. */
+export type AgentLinks = { items: AgentLinkInfo[] } | null | undefined;
+
+/** The web link of an agent, if any. Without `/v2/agents`, Candra alone counts as linked. */
+export function linkOf(links: AgentLinks, id: string | null | undefined): AgentLinkInfo | null {
+  if (!id) return null;
+  if (!links) return id === FALLBACK_LINKED ? { id, label: agent(id).displayName, transport: 'gateway_api', available: true, reason: null } : null;
+  return links.items.find(l => l.id === id) ?? null;
 }
 
-export function availabilityOf(agents: WorkspaceAgent[] | undefined, id: string | null | undefined): AgentAvailability {
+/** Roster name and title; agents outside the roster fall back to the label the API sent. */
+export function identityOf(id: string, label?: string | null): { name: string; title: string } {
+  const entry = workspace.roster.find(r => r.id === id);
+  if (entry) return { name: entry.displayName, title: entry.title };
+  return { name: label || agent(id).displayName, title: 'Agent' };
+}
+
+/** The backend agent list, plus every linked agent that /state does not list. */
+export function directAgents(agents: WorkspaceAgent[], links: AgentLinks): { id: string; availability: AgentAvailability; description?: string }[] {
+  const linked = (id: string) => linkOf(links, id);
+  const stateIds = new Set(agents.map(a => a.id));
+  const list: { id: string; availability: AgentAvailability; description?: string }[] = agents.map(a => ({
+    id: a.id,
+    availability: availabilityOf(agents, links, a.id),
+    description: a.description,
+  }));
+  const extra = (links ? links.items.map(l => l.id) : [FALLBACK_LINKED]).filter(id => !stateIds.has(id) && linked(id));
+  return [...extra.map(id => ({ id, availability: availabilityOf(agents, links, id) })), ...list];
+}
+
+export function availabilityOf(agents: WorkspaceAgent[] | undefined, links: AgentLinks, id: string | null | undefined): AgentAvailability {
   if (!id) return 'unknown';
-  if (id === CANDRA_ID) return 'shared';
+  const link = linkOf(links, id);
+  if (link) return link.available ? 'shared' : 'disconnected';
   const found = agents?.find(a => a.id === id);
   return found ? found.status : 'unknown';
 }
@@ -41,6 +60,7 @@ export const availabilityText: Record<AgentAvailability, string> = {
   history_only: 'Telegram',
   planned: 'Belum aktif',
   shared: 'Telegram + web',
+  disconnected: 'Belum tersambung',
   unknown: 'Tidak tersedia',
 };
 
@@ -52,6 +72,7 @@ export function blockedReason(availability: AgentAvailability, id: string | null
     case 'history_only': return `${name} bekerja lewat Telegram — riwayat saja. Kirim tugas ke ${name} dari Telegram.`;
     case 'planned': return `${name} belum diaktifkan. Thread ini bisa dibaca, tetapi belum bisa menerima pesan.`;
     case 'shared': return null;
+    case 'disconnected': return `Chat web dengan ${name} belum tersambung. Buka pesan langsungnya untuk melihat sebabnya.`;
     default: return 'Agent ini tidak tersedia untuk chat dari workspace.';
   }
 }

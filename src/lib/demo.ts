@@ -4,7 +4,7 @@
 // API after the owner logs in.
 import type { DataSource } from './source';
 import type {
-  CandraSession, ChatSnapshot, Control, ConversationDetail, InboxView, ReviewItem, SalesConversation, SalesEvent,
+  AgentSession, ChatSnapshot, Control, ConversationDetail, InboxView, ReviewItem, SalesConversation, SalesEvent,
   SalesMessage, Stage, Study, WorkJob, WorkflowProposal, WorkflowSimulation, WorkflowState, WorkspaceState,
 } from './types';
 
@@ -289,7 +289,8 @@ const workflowState: WorkflowState = {
   ],
 };
 
-const candraSession: CandraSession = {
+const candraSession: AgentSession = {
+  agent_id: 'candra', label: 'Candra',
   available: true, reason: null, detail: null, session_id: 'demo-telegram-dm',
   turn: { running: false, started_at: null, error: null, finished_at: null },
   messages: [
@@ -300,6 +301,19 @@ const candraSession: CandraSession = {
     { id: 'cd4', role: 'assistant', content: 'Harga multi-cabang belum ada di daftar yang disetujui, jadi percakapannya kutahan. Saranku: tawarkan panggilan 15 menit dengan pemiliknya untuk melihat kebutuhan tiap cabang, lalu kirim penawaran tertulis. Kalau setuju, balas sendiri dari Percakapan atau minta aku siapkan drafnya.', created_at: now() - 0.48 * H, source: 'web' },
   ],
 };
+
+const mandaSession: AgentSession = {
+  agent_id: 'manda', label: 'Manda',
+  available: true, reason: null, detail: null, session_id: 'demo-manda-dm',
+  turn: { running: false, started_at: null, error: null, finished_at: null },
+  messages: [
+    { id: 'md1', role: 'user', content: 'Manda, ada ide judul untuk naskah soal parkir motor di pasar?', created_at: now() - 3 * H, source: 'telegram' },
+    { id: 'md2', role: 'assistant', content: 'Tiga usulan: **Parkir Pasar, Siapa yang Atur?**, **Dua Ribu Rupiah dan Cerita di Baliknya**, **Juru Parkir Menjawab**. (Contoh fiktif untuk mode demo.)', created_at: now() - 2.9 * H, source: 'telegram' },
+  ],
+};
+
+const demoSessions: Record<string, AgentSession> = { candra: candraSession, manda: mandaSession };
+const demoNames: Record<string, string> = { candra: 'Candra', manda: 'Manda' };
 
 const workspaceState = (): WorkspaceState => ({
   user: { name: 'Pemilik' },
@@ -512,20 +526,32 @@ export const demoSource: DataSource = {
     by_status: jobs.reduce<Record<string, number>>((acc, j) => ({ ...acc, [j.status]: (acc[j.status] ?? 0) + 1 }), {}),
     identities: 1,
   }),
-  candra: async () => { await wait(); return structuredClone(candraSession); },
-  candraMediaUrl: () => null,
-  candraMediaText: async () => {
+  agentLinks: async () => {
+    await wait();
+    return { items: Object.keys(demoSessions).map(id => ({ id, label: demoNames[id], transport: 'gateway_api' as const, available: true, reason: null })) };
+  },
+  agentSession: async id => {
+    await wait();
+    const session = demoSessions[id];
+    if (!session) throw new Error('Agent tidak ditemukan.');
+    return structuredClone(session);
+  },
+  agentMediaUrl: () => null,
+  agentMediaText: async () => {
     await wait();
     return '# Prospek siap kontak — contoh\n\n| Bisnis | Kota | Masalah terbukti | Draf |\n|---|---|---|---|\n| Rumah Senyum Dental | Sanur | Halaman layanan 404 | ob_demo1 |\n| Padma Dental Studio | Renon | SSL kedaluwarsa | ob_demo2 |\n| Kuta Laser Skin | Kuta | Nomor WhatsApp tidak cocok | ob_demo3 |\n\n**Catatan:** semua bukti dicek semalam. (Data demo fiktif.)';
   },
-  sendCandra: async content => {
+  sendAgent: async (id, content) => {
     await wait(300);
-    if (candraSession.turn.running) throw new Error('Candra masih membalas pesan sebelumnya.');
-    candraSession.messages.push({ id: `cw${Date.now()}`, role: 'user', content, created_at: now(), source: 'web' });
-    candraSession.turn = { running: true, started_at: now(), error: null, finished_at: null };
+    const session = demoSessions[id];
+    if (!session) throw new Error('Agent tidak ditemukan.');
+    const name = demoNames[id];
+    if (session.turn.running) throw new Error(`${name} masih membalas pesan sebelumnya.`);
+    session.messages.push({ id: `cw${Date.now()}`, role: 'user', content, created_at: now(), source: 'web' });
+    session.turn = { running: true, started_at: now(), error: null, finished_at: null };
     setTimeout(() => {
-      candraSession.messages.push({ id: `cr${Date.now()}`, role: 'assistant', content: 'Siap, kuperiksa sekarang. (Mode demo: di workspace asli, Candra membalas di sesi yang sama dengan Telegram.)', created_at: now(), source: 'web' });
-      candraSession.turn = { running: false, started_at: candraSession.turn.started_at, error: null, finished_at: now() };
+      session.messages.push({ id: `cr${Date.now()}`, role: 'assistant', content: `Siap, kuperiksa sekarang. (Mode demo: di workspace asli, ${name} membalas di sesi yang sama dengan Telegram.)`, created_at: now(), source: 'web' });
+      session.turn = { running: false, started_at: session.turn.started_at, error: null, finished_at: now() };
     }, 1800);
   },
 };
