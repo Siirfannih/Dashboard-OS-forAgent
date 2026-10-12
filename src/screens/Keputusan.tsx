@@ -293,7 +293,8 @@ function InactiveDraft({ id, active }: { id: string; active: ReviewItem[] }) {
   const draft: OutboxItem | undefined = res.data;
   const current = draft ? active.find(r => r.conversation_id === draft.conversation_id && PENDING.includes(r.status)) : undefined;
   const title = draft ? closedTitle[draft.status] ?? 'Draf ini tidak lagi menunggu keputusan' : 'Draf ini tidak lagi menunggu keputusan';
-  const reason = draft?.error ? closedReason[draft.error] ?? null : null;
+  // Codes map to owner language; backend notes that are already sentences are shown as they are.
+  const reason = draft?.error ? closedReason[draft.error] ?? (/\s/.test(draft.error) ? draft.error : null) : null;
   return (
     <div className="flex-1 overflow-y-auto">
       <BackLink />
