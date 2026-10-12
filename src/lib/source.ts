@@ -1,7 +1,7 @@
 import { get, post } from './api';
 import type {
   BridgeStatus, ChatConversation, ChatSnapshot, Control, ConversationDetail, ConversationList, InboxView,
-  Metrics, ReviewItem, ReviewPolicy, UsageTotal, WhatsAppLink, WorkBatch, WorkJobs, WorkflowChange, WorkflowProposal, WorkflowSimulation,
+  Metrics, OutboxItem, ReviewItem, ReviewPolicy, UsageTotal, WhatsAppLink, WorkBatch, WorkJobs, WorkflowChange, WorkflowProposal, WorkflowSimulation,
   CandraSession, WorkerSignal, WorkflowState, WorkspaceState,
 } from './types';
 
@@ -15,6 +15,8 @@ export interface DataSource {
   logout(): Promise<void>;
   state(): Promise<WorkspaceState>;
   review(): Promise<ReviewItem[]>;
+  /** One outbox row in any status (cancelled, sent, …) — for links to drafts that are no longer pending. */
+  draft(id: string): Promise<OutboxItem>;
   reviewPolicy(): Promise<ReviewPolicy>;
   approve(item: ReviewItem): Promise<void>;
   decline(item: ReviewItem, reason: string, action: 'revise' | 'hold'): Promise<void>;
@@ -59,6 +61,7 @@ export const liveSource: DataSource = {
   logout: async () => { await post('/logout'); },
   state: () => get<WorkspaceState>('/state'),
   review: () => get<ReviewItem[]>('/sales/review'),
+  draft: id => get<OutboxItem>(`/sales/outbox/${enc(id)}/review`),
   reviewPolicy: () => get<ReviewPolicy>('/sales/review-policy'),
   approve: async item => {
     await post(`/sales/outbox/${enc(item.id)}/approve`, { version: item.version, snapshot: item.snapshot, namespace: item.namespace });

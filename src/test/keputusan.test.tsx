@@ -65,3 +65,20 @@ describe('Keputusan — persetujuan yang dicabut sistem', () => {
     expect(approveButton()?.hasAttribute('disabled')).toBe(false);
   });
 });
+
+describe('Keputusan — tautan ke draf yang tidak aktif lagi', () => {
+  it('menjelaskan draf dibatalkan dan menautkan ke draf aktif prospek yang sama', async () => {
+    const active = item({ id: 'ob_baru', conversation_id: 'cv_x', name: 'Klinik Contoh' });
+    const source: DataSource = {
+      ...emptySource,
+      review: async () => [active],
+      draft: async id => ({ ...active, id, status: 'cancelled', error: 'study_stale', body: 'Isi lama.\n\nParagraf dua.' }),
+    };
+    window.location.hash = '#/keputusan/ob_lama';
+    render(<SourceProvider source={source}><ToastProvider><Workspace onLogout={() => undefined} /></ToastProvider></SourceProvider>);
+    await waitFor(() => expect(screen.getByText('Draf ini sudah dibatalkan')).toBeTruthy());
+    expect(screen.getByText(/bukti riset sudah lebih dari 24 jam/)).toBeTruthy();
+    expect(screen.getByText('Isi lama.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Buka draf aktif Klinik Contoh/ })).toBeTruthy();
+  });
+});

@@ -182,7 +182,9 @@ export interface WorkJob {
   revision: number;
   error: string | null;
   payload: string | Record<string, unknown> | null;
-  checkpoint: string | null;
+  /** The ledger API sends a parsed object; tolerate a string too. */
+  checkpoint: string | Record<string, unknown> | null;
+  result?: string | Record<string, unknown> | null;
   feedback: string | null;
   run_mode: string;
   created_at: number;

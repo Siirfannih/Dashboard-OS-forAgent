@@ -47,7 +47,7 @@ export function payloadOf(job: WorkJob): Payload {
   return parseJson<Payload>(job.payload) ?? {};
 }
 
-const pick = (p: Payload, keys: string[]) => {
+const pickOne = (p: Payload, keys: string[]) => {
   for (const k of keys) {
     const v = p[k];
     if (typeof v === 'string' && v.trim()) return v.trim();
@@ -56,18 +56,49 @@ const pick = (p: Payload, keys: string[]) => {
   return null;
 };
 
-export const prospectOf = (p: Payload) => pick(p, ['prospect', 'name', 'business', 'prospect_name', 'prospect_ref', 'domain']);
-export const taskOf = (p: Payload) => pick(p, ['task', 'job_type', 'type', 'stage', 'kind']);
-export const batchOf = (p: Payload) => pick(p, ['batch_id', 'batch']);
+/** The ledger nests the job's own fields under `input`; top-level keys win, then `input`. */
+const pick = (p: Payload, keys: string[]) => {
+  const input = p.input && typeof p.input === 'object' && !Array.isArray(p.input) ? p.input as Payload : null;
+  return pickOne(p, keys) ?? (input ? pickOne(input, keys) : null);
+};
 
-/** Checkpoints are shown as "langkah …", never as the raw term. */
-export function stepLabel(checkpoint: string | null): string | null {
+const taskKind: Record<string, string> = {
+  maps_search: 'Cari tempat di Google Maps',
+  prospect_research: 'Riset prospek',
+  maps_lookup: 'Cocokkan data Google Maps',
+  discovery: 'Cari kandidat prospek',
+};
+
+export function prospectOf(p: Payload): string | null {
+  const name = pick(p, ['prospect', 'business_name', 'name', 'business', 'prospect_name', 'prospect_ref']);
+  if (name) return name;
+  const query = pick(p, ['query']);
+  return query ? `Pencarian: ${query}` : null;
+}
+export function taskOf(p: Payload): string | null {
+  const kind = pick(p, ['task', 'task_kind', 'job_type', 'type', 'kind']);
+  return kind ? taskKind[kind] ?? kind : null;
+}
+export const batchOf = (p: Payload) => pick(p, ['batch_id', 'batch']);
+/** Worker's own one-line summary of the result, when it wrote one. */
+export const summaryOf = (job: { result?: unknown }) => {
+  const r = parseJson<Payload>(job.result);
+  return r ? pickOne(r, ['summary']) : null;
+};
+
+/** Checkpoints are shown as "langkah …", never as the raw term. The API sends an object; older rows a string. */
+export function stepLabel(checkpoint: unknown): string | null {
   if (!checkpoint) return null;
-  let text = checkpoint.trim();
-  if (text.startsWith('{')) {
-    const parsed = parseJson<Payload>(text);
-    text = (parsed && pick(parsed, ['label', 'step', 'stage', 'name'])) ?? '';
+  let text = '';
+  if (typeof checkpoint === 'string') {
+    text = checkpoint.trim();
+    if (text.startsWith('{')) {
+      const parsed = parseJson<Payload>(text);
+      text = (parsed && pickOne(parsed, ['label', 'step', 'stage', 'name'])) ?? '';
+    }
+  } else if (typeof checkpoint === 'object' && !Array.isArray(checkpoint)) {
+    text = pickOne(checkpoint as Payload, ['label', 'step', 'stage', 'name']) ?? '';
   }
   if (!text) return null;
-  return /^langkah\b/i.test(text) ? text : `langkah ${text}`;
+  return /^langkah\b/i.test(text) ? text : `langkah ${text.replace(/_/g, ' ')}`;
 }

@@ -86,6 +86,20 @@ const jobs: WorkJob[] = [
     worker_id: 'w1', lease_expiry: NOW - 10, revision: 2, error: null, payload: { name: LONG_TOKEN, nested: { a: [1, 2] } },
     checkpoint: LONG_TOKEN, feedback: HOSTILE, run_mode: 'production', created_at: 0, updated_at: 0,
   },
+  // Shape the live ledger API returns (work_hub.item): payload/checkpoint/result are parsed objects.
+  {
+    id: 'job_live', domain: 'sales', head_agent: 'candra', worker_role: 'research', status: 'abandoned_unknown', attempt: 1,
+    worker_id: 'node-c', lease_expiry: NOW + 60, revision: 0, error: 'uncertain', run_mode: 'production', created_at: NOW, updated_at: NOW,
+    payload: { domain: 'sales', head_agent: 'candra', budget: { usd: 0.01 }, input: { task_kind: 'maps_lookup', business_name: 'Klinik Contoh', evidence: [] }, batch_id: 'b1' },
+    checkpoint: { stage: 'model_inflight', generation: 1, usage: { tokens: 3 } } as unknown as string,
+    result: { summary: 'Ringkasan contoh', maps: { hits: [1] } },
+    feedback: null,
+  },
+  {
+    id: 'job_query', domain: 'sales', head_agent: 'candra', worker_role: 'maps', status: 'accepted', attempt: 1,
+    worker_id: 'node-c', lease_expiry: null, revision: 0, error: null, run_mode: 'production', created_at: NOW, updated_at: NOW,
+    payload: { domain: 'sales', input: { task_kind: 'maps_search', query: 'klinik gigi contoh' } }, checkpoint: {} as unknown as string, feedback: '',
+  },
 ];
 
 const state: WorkspaceState = {
@@ -133,6 +147,7 @@ export const extremeSource: DataSource = {
   kind: 'live',
   state: async () => structuredClone(state),
   review: async () => structuredClone(review),
+  draft: async id => ({ ...structuredClone(review[0]), id, status: 'cancelled', error: 'study_stale' }),
   reviewPolicy: async () => ({ owner_approval: 'mode_baru', approval_expires_hours: 0, pitch_evidence_hours: 0, autonomous_replies: true, pilot_outbound: true }),
   conversations: async () => ({ items: structuredClone(conversations), counts: { all: 3, hold: 999_999 } }),
   conversation: async id => {

@@ -352,6 +352,12 @@ export const demoSource: DataSource = {
   logout: async () => undefined,
   state: async () => { await wait(); return workspaceState(); },
   review: async () => { await wait(); return reviewItems.filter(item => ['draft', 'needs_revision', 'queued', 'telegram_approved'].includes(item.status)); },
+  draft: async id => {
+    await wait();
+    const found = reviewItems.find(r => r.id === id);
+    if (!found) throw new Error('Draf tidak ditemukan.');
+    return found;
+  },
   reviewPolicy: async () => ({ owner_approval: 'all_ai', approval_expires_hours: 48, pitch_evidence_hours: 24, autonomous_replies: false, pilot_outbound: false }),
   approve: async item => {
     await wait(400);
