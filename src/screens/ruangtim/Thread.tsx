@@ -10,11 +10,12 @@ import { Attachments } from './Attachments';
 import { ObjectCards } from './ObjectCards';
 import { Composer, Notice, RichText } from './Composer';
 import { InfoPanel } from './InfoPanel';
-import { availabilityOf, blockedReason, isActiveRun, membersOf } from './model';
+import { availabilityOf, blockedReason, isActiveRun, membersOf, type AgentLinks } from './model';
 
-export function Thread({ id, agents, onChanged, prefill }: {
+export function Thread({ id, agents, links, onChanged, prefill }: {
   id: string;
   agents: WorkspaceAgent[] | undefined;
+  links: AgentLinks;
   onChanged: () => void;
   prefill?: string;
 }) {
@@ -66,11 +67,11 @@ export function Thread({ id, agents, onChanged, prefill }: {
 
   const room = chat.kind === 'room';
   const members = membersOf(chat);
-  const readyMembers = members.filter(m => availabilityOf(agents, m) === 'ready');
+  const readyMembers = members.filter(m => availabilityOf(agents, links, m) === 'ready');
   const owner = agent(chat.agent_id);
   const blocked = room
     ? (readyMembers.length ? null : 'Belum ada anggota ruang ini yang bisa menerima pesan. Riwayat tetap bisa dibaca.')
-    : blockedReason(availabilityOf(agents, chat.agent_id), chat.agent_id);
+    : blockedReason(availabilityOf(agents, links, chat.agent_id), chat.agent_id);
   const activeRun = chat.runs.find(r => r.status === 'running') ?? chat.runs.find(r => r.status === 'queued');
   const lastRun = chat.runs[chat.runs.length - 1];
   const waiting = active ? `${agent(activeRun?.agent_id ?? chat.agent_id).displayName} masih mengerjakan pesan sebelumnya. Kamu bisa menulis; kirim setelah balasannya masuk.` : null;
@@ -138,10 +139,10 @@ export function Thread({ id, agents, onChanged, prefill }: {
         </div>
       </div>
       <aside className="hidden w-[320px] shrink-0 overflow-y-auto border-l border-line bg-card p-5 xl:block" aria-label="Info thread">
-        <InfoPanel chat={chat} agents={agents} />
+        <InfoPanel chat={chat} agents={agents} links={links} />
       </aside>
       <Modal open={infoOpen} onClose={closeInfo} title="Info thread" width={420}>
-        <InfoPanel chat={chat} agents={agents} />
+        <InfoPanel chat={chat} agents={agents} links={links} />
       </Modal>
     </div>
   );
@@ -160,8 +161,8 @@ function ThreadHeader({ title, crumb, onInfo }: { title: string; crumb?: ReactNo
   );
 }
 
-/** `withMedia`: render Hermes "MEDIA:" lines as attachment cards (Candra's shared session). */
-export function MessageList({ chat, withMedia = false }: { chat: ChatSnapshot; withMedia?: boolean }) {
+/** `mediaAgent`: render Hermes "MEDIA:" lines as attachment cards served by that agent's gateway session. */
+export function MessageList({ chat, mediaAgent }: { chat: ChatSnapshot; mediaAgent?: string }) {
   let lastDay = '';
   let prev: ChatMessage | null = null;
   const rows = chat.messages.map(m => {
@@ -202,8 +203,8 @@ export function MessageList({ chat, withMedia = false }: { chat: ChatSnapshot; w
                   </div>
                 )}
                 {(() => {
-                  const { text, media } = withMedia ? splitMedia(m.content) : { text: m.content, media: [] as string[] };
-                  return <>{text && <RichText text={text} />}{author !== 'owner' && text && <ObjectCards text={text} />}{media.length > 0 && <Attachments paths={media} />}</>;
+                  const { text, media } = mediaAgent ? splitMedia(m.content) : { text: m.content, media: [] as string[] };
+                  return <>{text && <RichText text={text} />}{author !== 'owner' && text && <ObjectCards text={text} />}{media.length > 0 && <Attachments agentId={mediaAgent!} paths={media} />}</>;
                 })()}
               </div>
             </article>

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Button, Modal } from '../../components/ui';
 import { useSource } from '../../lib/data';
 import { RichText } from './Composer';
+import { identityOf } from './model';
 
 type Kind = 'image' | 'text' | 'markdown' | 'pdf' | 'audio' | 'video' | 'other';
 
@@ -28,27 +29,28 @@ const kindLabel: Record<Kind, string> = {
 const fileName = (path: string) => path.split('/').pop() || path;
 
 /** Files an agent shared in the conversation (Hermes "MEDIA:" lines), with in-place preview. */
-export function Attachments({ paths }: { paths: string[] }) {
+export function Attachments({ agentId, paths }: { agentId: string; paths: string[] }) {
   const source = useSource();
   const [open, setOpen] = useState<string | null>(null);
+  const name = identityOf(agentId).name;
   if (!paths.length) return null;
   return (
     <div className="mt-2 flex flex-col gap-2">
       {paths.map(path => {
-        const name = fileName(path);
-        const kind = kindOf(name);
-        const url = source.candraMediaUrl(path);
-        const download = source.candraMediaUrl(path, true);
+        const file = fileName(path);
+        const kind = kindOf(file);
+        const url = source.agentMediaUrl(agentId, path);
+        const download = source.agentMediaUrl(agentId, path, true);
         return (
           <div key={path} className="flex max-w-[460px] items-center gap-3 rounded-xl border border-line bg-card px-3 py-2.5">
             <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-accent-soft text-accent">{kindIcon[kind]}</span>
             <div className="min-w-0 flex-1">
-              <div className="truncate text-[13px] font-medium" title={name}>{name}</div>
-              <div className="text-[12px] text-muted">{kindLabel[kind]} · dibagikan Candra</div>
+              <div className="truncate text-[13px] font-medium" title={file}>{file}</div>
+              <div className="text-[12px] text-muted">{kindLabel[kind]} · dibagikan {name}</div>
             </div>
             <Button size="sm" variant="secondary" icon={<Eye size={14} />} onClick={() => setOpen(path)}>Lihat</Button>
             {download && (
-              <a href={download} download={name} aria-label={`Unduh ${name}`} title="Unduh" className="grid size-8 shrink-0 place-items-center rounded-lg text-ink-soft hover:bg-line-soft">
+              <a href={download} download={file} aria-label={`Unduh ${file}`} title="Unduh" className="grid size-8 shrink-0 place-items-center rounded-lg text-ink-soft hover:bg-line-soft">
                 <Download size={16} />
               </a>
             )}
@@ -56,16 +58,16 @@ export function Attachments({ paths }: { paths: string[] }) {
           </div>
         );
       })}
-      {open && <Preview path={open} onClose={() => setOpen(null)} />}
+      {open && <Preview agentId={agentId} path={open} onClose={() => setOpen(null)} />}
     </div>
   );
 }
 
-function Preview({ path, onClose }: { path: string; onClose: () => void }) {
+function Preview({ agentId, path, onClose }: { agentId: string; path: string; onClose: () => void }) {
   const source = useSource();
   const name = fileName(path);
   const kind = kindOf(name);
-  const url = source.candraMediaUrl(path);
+  const url = source.agentMediaUrl(agentId, path);
   const [text, setText] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const close = useCallback(() => onClose(), [onClose]);
@@ -73,11 +75,11 @@ function Preview({ path, onClose }: { path: string; onClose: () => void }) {
   useEffect(() => {
     if (kind !== 'text' && kind !== 'markdown') return;
     let alive = true;
-    source.candraMediaText(path).then(t => alive && setText(t)).catch(e => alive && setError(e instanceof Error ? e.message : 'Lampiran tidak bisa dibuka.'));
+    source.agentMediaText(agentId, path).then(t => alive && setText(t)).catch(e => alive && setError(e instanceof Error ? e.message : 'Lampiran tidak bisa dibuka.'));
     return () => { alive = false; };
-  }, [kind, path, source]);
+  }, [agentId, kind, path, source]);
 
-  const download = source.candraMediaUrl(path, true);
+  const download = source.agentMediaUrl(agentId, path, true);
   return (
     <Modal open onClose={close} title={name} width={kind === 'image' || kind === 'markdown' ? 860 : 640}
       footer={<>

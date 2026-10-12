@@ -182,7 +182,9 @@ export interface WorkJob {
   revision: number;
   error: string | null;
   payload: string | Record<string, unknown> | null;
-  checkpoint: string | null;
+  /** The ledger API sends a parsed object; tolerate a string too. */
+  checkpoint: string | Record<string, unknown> | null;
+  result?: string | Record<string, unknown> | null;
   feedback: string | null;
   run_mode: string;
   created_at: number;
@@ -311,13 +313,18 @@ export interface WorkflowProposal {
   applied_at?: number | null;
 }
 
-export interface CandraMessage { id: string; role: 'user' | 'assistant'; content: string; created_at: number | string | null; source?: string | null }
-export interface CandraSession {
+export interface AgentMessage { id: string; role: 'user' | 'assistant'; content: string; created_at: number | string | null; source?: string | null }
+/** One agent reachable from the web through its own Hermes gateway session (`/v2/agents`). */
+export interface AgentLinkInfo { id: string; label: string; transport: 'gateway_api'; available: boolean; reason: string | null }
+/** A linked agent's gateway session, shared with its Telegram DM. */
+export interface AgentSession {
+  agent_id?: string;
+  label?: string;
   available: boolean;
   reason: string | null;
   detail: string | null;
   session_id: string | null;
-  messages: CandraMessage[];
+  messages: AgentMessage[];
   turn: { running: boolean; started_at: number | null; error: string | null; finished_at: number | null };
 }
 

@@ -4,9 +4,9 @@ import { AgentAvatar, IconButton, Overline, Pill } from '../../components/ui';
 import { agent, workspace } from '../../config/workspace';
 import { ago, clock, dateTime } from '../../lib/format';
 import type { WorkJob } from '../../lib/types';
-import { batchOf, info, payloadOf, prospectOf, stepLabel, taskOf } from './jobs';
+import { batchOf, info, payloadOf, prospectOf, stepLabel, summaryOf, taskOf } from './jobs';
 
-const SHOWN = new Set(['prospect', 'name', 'business', 'prospect_name', 'task', 'job_type', 'type', 'batch_id', 'batch']);
+const SHOWN = new Set(['prospect', 'name', 'business', 'prospect_name', 'task', 'job_type', 'type', 'batch_id', 'batch', 'domain', 'head_agent', 'worker_role', 'run_mode', 'idempotency_key']);
 
 /** Read-only side panel for one research job. Escape or backdrop closes it. */
 export function JobPanel({ job, onClose }: { job: WorkJob; onClose: () => void }) {
@@ -25,6 +25,7 @@ export function JobPanel({ job, onClose }: { job: WorkJob; onClose: () => void }
   const p = payloadOf(job);
   const s = info(job.status);
   const step = stepLabel(job.checkpoint);
+  const summary = summaryOf(job);
   const extra = Object.entries(p).filter(([k, v]) => !SHOWN.has(k) && v !== null && v !== undefined && v !== '');
   const head = agent(job.head_agent);
   const worker = agent(job.worker_role);
@@ -51,6 +52,12 @@ export function JobPanel({ job, onClose }: { job: WorkJob; onClose: () => void }
 
           {job.error && (
             <Block title="Penyebab" tone="danger">{job.error}</Block>
+          )}
+          {summary && (
+            <div className="mt-4 rounded-lg border border-line bg-surface px-3 py-2.5 text-[13px]">
+              <div className="font-semibold">Ringkasan hasil worker</div>
+              <div className="mt-0.5 break-words text-ink-soft">{summary}</div>
+            </div>
           )}
           {job.feedback && (
             <Block title="Catatan Candra untuk worker" tone="warn">{job.feedback}</Block>

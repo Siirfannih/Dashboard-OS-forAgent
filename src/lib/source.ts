@@ -1,8 +1,8 @@
 import { get, post } from './api';
 import type {
   BridgeStatus, ChatConversation, ChatSnapshot, Control, ConversationDetail, ConversationList, InboxView,
-  Metrics, ReviewItem, ReviewPolicy, UsageTotal, WhatsAppLink, WorkBatch, WorkJobs, WorkflowChange, WorkflowProposal, WorkflowSimulation,
-  CandraSession, WorkerSignal, WorkflowState, WorkspaceState,
+  Metrics, OutboxItem, ReviewItem, ReviewPolicy, UsageTotal, WhatsAppLink, WorkBatch, WorkJobs, WorkflowChange, WorkflowProposal, WorkflowSimulation,
+  AgentLinkInfo, AgentSession, WorkerSignal, WorkflowState, WorkspaceState,
 } from './types';
 
 export interface Auth { authenticated: boolean; user?: { name?: string } | null }
@@ -15,6 +15,8 @@ export interface DataSource {
   logout(): Promise<void>;
   state(): Promise<WorkspaceState>;
   review(): Promise<ReviewItem[]>;
+  /** One outbox row in any status (cancelled, sent, …) — for links to drafts that are no longer pending. */
+  draft(id: string): Promise<OutboxItem>;
   reviewPolicy(): Promise<ReviewPolicy>;
   approve(item: ReviewItem): Promise<void>;
   decline(item: ReviewItem, reason: string, action: 'revise' | 'hold'): Promise<void>;
@@ -42,12 +44,14 @@ export interface DataSource {
   /** Creates a normal pending proposal that restores version `target`; nothing is applied directly. */
   revertWorkflow(target: number, note: string): Promise<WorkflowProposal>;
   worker(): Promise<WorkerSignal>;
-  /** Candra's Telegram DM session, shared with the web (one history, one memory). */
-  candra(): Promise<CandraSession>;
-  sendCandra(content: string): Promise<void>;
-  /** Same-origin URL for a file Candra shared in the session (null when not previewable here). */
-  candraMediaUrl(path: string, download?: boolean): string | null;
-  candraMediaText(path: string): Promise<string>;
+  /** Agents that have a web link through their own gateway session. */
+  agentLinks(): Promise<{ items: AgentLinkInfo[] }>;
+  /** A linked agent's Telegram DM session, shared with the web (one history, one memory). */
+  agentSession(id: string): Promise<AgentSession>;
+  sendAgent(id: string, content: string): Promise<void>;
+  /** Same-origin URL for a file the agent shared in the session (null when not previewable here). */
+  agentMediaUrl(id: string, path: string, download?: boolean): string | null;
+  agentMediaText(id: string, path: string): Promise<string>;
 }
 
 const enc = encodeURIComponent;
@@ -59,6 +63,7 @@ export const liveSource: DataSource = {
   logout: async () => { await post('/logout'); },
   state: () => get<WorkspaceState>('/state'),
   review: () => get<ReviewItem[]>('/sales/review'),
+  draft: id => get<OutboxItem>(`/sales/outbox/${enc(id)}/review`),
   reviewPolicy: () => get<ReviewPolicy>('/sales/review-policy'),
   approve: async item => {
     await post(`/sales/outbox/${enc(item.id)}/approve`, { version: item.version, snapshot: item.snapshot, namespace: item.namespace });
@@ -90,11 +95,12 @@ export const liveSource: DataSource = {
   simulateWorkflow: input => post<WorkflowSimulation>('/v2/workflow/simulate', input),
   revertWorkflow: (target, note) => post<WorkflowProposal>('/v2/workflow/revert', { target_version: target, note }),
   worker: () => get<WorkerSignal>('/v2/worker'),
-  candra: () => get<CandraSession>('/v2/candra'),
-  sendCandra: async content => { await post('/v2/candra/messages', { content }); },
-  candraMediaUrl: (path, download = false) => `/api/v2/candra/media?path=${enc(path)}${download ? '&download=true' : ''}`,
-  candraMediaText: async path => {
-    const response = await fetch(`/api/v2/candra/media?path=${enc(path)}`, { credentials: 'same-origin' });
+  agentLinks: () => get<{ items: AgentLinkInfo[] }>('/v2/agents'),
+  agentSession: id => get<AgentSession>(`/v2/agents/${enc(id)}`),
+  sendAgent: async (id, content) => { await post(`/v2/agents/${enc(id)}/messages`, { content }); },
+  agentMediaUrl: (id, path, download = false) => `/api/v2/agents/${enc(id)}/media?path=${enc(path)}${download ? '&download=true' : ''}`,
+  agentMediaText: async (id, path) => {
+    const response = await fetch(`/api/v2/agents/${enc(id)}/media?path=${enc(path)}`, { credentials: 'same-origin' });
     if (!response.ok) throw new Error(response.status === 404 ? 'Lampiran tidak ditemukan di server.' : 'Lampiran tidak bisa dibuka.');
     return response.text();
   },

@@ -4,7 +4,7 @@
 import { ApiError } from '../lib/api';
 import type { DataSource } from '../lib/source';
 import type {
-  CandraSession, ChatSnapshot, ConversationDetail, ReviewItem, SalesConversation, Stage, WorkJob, WorkspaceState,
+  AgentSession, ChatSnapshot, ConversationDetail, ReviewItem, SalesConversation, Stage, WorkJob, WorkspaceState,
 } from '../lib/types';
 
 const NOW = Date.now() / 1000;
@@ -86,6 +86,20 @@ const jobs: WorkJob[] = [
     worker_id: 'w1', lease_expiry: NOW - 10, revision: 2, error: null, payload: { name: LONG_TOKEN, nested: { a: [1, 2] } },
     checkpoint: LONG_TOKEN, feedback: HOSTILE, run_mode: 'production', created_at: 0, updated_at: 0,
   },
+  // Shape the live ledger API returns (work_hub.item): payload/checkpoint/result are parsed objects.
+  {
+    id: 'job_live', domain: 'sales', head_agent: 'candra', worker_role: 'research', status: 'abandoned_unknown', attempt: 1,
+    worker_id: 'node-c', lease_expiry: NOW + 60, revision: 0, error: 'uncertain', run_mode: 'production', created_at: NOW, updated_at: NOW,
+    payload: { domain: 'sales', head_agent: 'candra', budget: { usd: 0.01 }, input: { task_kind: 'maps_lookup', business_name: 'Klinik Contoh', evidence: [] }, batch_id: 'b1' },
+    checkpoint: { stage: 'model_inflight', generation: 1, usage: { tokens: 3 } } as unknown as string,
+    result: { summary: 'Ringkasan contoh', maps: { hits: [1] } },
+    feedback: null,
+  },
+  {
+    id: 'job_query', domain: 'sales', head_agent: 'candra', worker_role: 'maps', status: 'accepted', attempt: 1,
+    worker_id: 'node-c', lease_expiry: null, revision: 0, error: null, run_mode: 'production', created_at: NOW, updated_at: NOW,
+    payload: { domain: 'sales', input: { task_kind: 'maps_search', query: 'klinik gigi contoh' } }, checkpoint: {} as unknown as string, feedback: '',
+  },
 ];
 
 const state: WorkspaceState = {
@@ -111,7 +125,7 @@ const chat: ChatSnapshot = {
   runs: [{ id: 'r1', status: 'failed', agent_id: 'agent_tak_dikenal', error: LONG_TOKEN }],
 };
 
-const candra: CandraSession = {
+const candra: AgentSession = {
   available: true, reason: null, detail: null, session_id: 's1',
   messages: [
     { id: 'k1', role: 'user', content: LONG_TOKEN, created_at: null, source: null },
@@ -123,8 +137,8 @@ const candra: CandraSession = {
 const base = {
   auth: async () => ({ authenticated: true }),
   login: noop, logout: noop, approve: noop, decline: noop, setControl: noop, ownerMessage: noop, addNote: noop, markSeen: noop,
-  sendChat: noop, sendCandra: noop,
-  candraMediaUrl: () => null, candraMediaText: async () => '',
+  sendChat: noop, sendAgent: noop,
+  agentMediaUrl: () => null, agentMediaText: async () => '',
 };
 
 /** Real-shaped data at its worst. */
@@ -133,6 +147,7 @@ export const extremeSource: DataSource = {
   kind: 'live',
   state: async () => structuredClone(state),
   review: async () => structuredClone(review),
+  draft: async id => ({ ...structuredClone(review[0]), id, status: 'cancelled', error: 'study_stale' }),
   reviewPolicy: async () => ({ owner_approval: 'mode_baru', approval_expires_hours: 0, pitch_evidence_hours: 0, autonomous_replies: true, pilot_outbound: true }),
   conversations: async () => ({ items: structuredClone(conversations), counts: { all: 3, hold: 999_999 } }),
   conversation: async id => {
@@ -171,7 +186,17 @@ export const extremeSource: DataSource = {
   simulateWorkflow: async () => { throw new ApiError('Konflik', 409); },
   revertWorkflow: async () => { throw new ApiError('Konflik', 409); },
   worker: async () => ({ last_activity_at: null, by_status: { status_baru: 3 }, identities: 0 }),
-  candra: async () => structuredClone(candra),
+  agentLinks: async () => ({
+    items: [
+      { id: 'candra', label: 'Candra', transport: 'gateway_api' as const, available: true, reason: null },
+      { id: 'agent_panjang', label: LONG_TOKEN, transport: 'gateway_api' as const, available: true, reason: null },
+      { id: 'agent_mati', label: 'Agent Mati', transport: 'gateway_api' as const, available: false, reason: 'gateway_unreachable' },
+    ],
+  }),
+  agentSession: async id => {
+    if (id === 'agent_mati') return { agent_id: id, label: 'Agent Mati', available: false, reason: 'gateway_unreachable', detail: null, session_id: null, messages: [], turn: { running: false, started_at: null, error: null, finished_at: null } };
+    return { ...structuredClone(candra), agent_id: id, label: id === 'agent_panjang' ? LONG_TOKEN : 'Candra' };
+  },
 };
 
 /** A brand-new workspace: nothing yet, every metric unmeasured. */
@@ -191,7 +216,8 @@ export const emptySource: DataSource = {
   usage: async () => ({}),
   workflow: async () => ({ version: 1, overrides: {}, proposals: [] }),
   worker: async () => ({ last_activity_at: null, by_status: {}, identities: 0 }),
-  candra: async () => ({ available: false, reason: 'not_configured', detail: null, session_id: null, messages: [], turn: { running: false, started_at: null, error: null, finished_at: null } }),
+  agentLinks: async () => ({ items: [] }),
+  agentSession: async () => ({ available: false, reason: 'not_configured', detail: null, session_id: null, messages: [], turn: { running: false, started_at: null, error: null, finished_at: null } }),
 };
 
 /** Every read fails like a broken backend (500). */

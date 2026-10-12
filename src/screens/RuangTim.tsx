@@ -6,16 +6,18 @@ import { useResource, useSource, useToast } from '../lib/data';
 import { ago, dateTime } from '../lib/format';
 import { go, href } from '../lib/router';
 import type { ChatConversation, WorkspaceAgent } from '../lib/types';
-import { CandraThread } from './ruangtim/CandraThread';
+import { GatewayThread } from './ruangtim/GatewayThread';
 import { Composer, Notice } from './ruangtim/Composer';
 import { AgentStatusPill } from './ruangtim/InfoPanel';
 import {
-  AGENT_PREFIX, availabilityOf, blockedReason, CANDRA_ID, directAgents, sortByUpdated, SUGGESTIONS, type AgentAvailability,
+  AGENT_PREFIX, availabilityOf, blockedReason, directAgents, identityOf, linkOf, sortByUpdated, SUGGESTIONS, type AgentAvailability, type AgentLinks,
 } from './ruangtim/model';
 import { Thread } from './ruangtim/Thread';
 
 export function RuangTimPage({ id }: { id?: string }) {
   const state = useResource(s => s.state(), [], 20_000);
+  // null = backend without /v2/agents; the screen then treats only Candra as linked.
+  const links = useResource(s => s.agentLinks().catch(() => null), [], 30_000).data;
   const [newFor, setNewFor] = useState<string | null>(null);
   const reloadState = state.reload;
   const onChanged = useCallback(() => { void reloadState(); }, [reloadState]);
@@ -42,24 +44,26 @@ export function RuangTimPage({ id }: { id?: string }) {
           error={state.data ? null : state.error}
           onRetry={state.reload}
           agents={agents ?? []}
+          links={links}
           conversations={conversations}
           selected={id}
         />
       </aside>
 
       <section className={`min-w-0 flex-1 bg-card ${id ? 'flex' : 'hidden md:flex'}`} aria-label="Isi thread">
-        {threadId && <Thread id={threadId} agents={agents} onChanged={onChanged} />}
-        {agentView === CANDRA_ID && <CandraThread />}
-        {agentView && agentView !== CANDRA_ID && (
+        {threadId && <Thread id={threadId} agents={agents} links={links} onChanged={onChanged} />}
+        {agentView && linkOf(links, agentView) && <GatewayThread key={agentView} agentId={agentView} />}
+        {agentView && !linkOf(links, agentView) && (
           <AgentPane
             id={agentView}
             agents={agents}
+            links={links}
             conversations={conversations.filter(c => c.agent_id === agentView || c.member_ids?.includes(agentView))}
             loading={!state.data && !state.error}
             onNew={() => setNewFor(agentView)}
           />
         )}
-        {!id && <StartView agents={agents} loading={!state.data && !state.error} onCreated={onChanged} />}
+        {!id && <StartView agents={agents} links={links} loading={!state.data && !state.error} onCreated={onChanged} />}
       </section>
 
       <NewThreadModal
@@ -75,11 +79,12 @@ export function RuangTimPage({ id }: { id?: string }) {
 
 /* ---------- Left column ---------- */
 
-function ThreadList({ loading, error, onRetry, agents, conversations, selected }: {
+function ThreadList({ loading, error, onRetry, agents, links, conversations, selected }: {
   loading: boolean;
   error: string | null;
   onRetry: () => void;
   agents: WorkspaceAgent[];
+  links: AgentLinks;
   conversations: ChatConversation[];
   selected?: string;
 }) {
@@ -99,9 +104,9 @@ function ThreadList({ loading, error, onRetry, agents, conversations, selected }
     <nav className="min-h-0 flex-1 overflow-y-auto px-2 pb-6" aria-label="Thread dan pesan langsung">
       <Overline className="px-2.5 pb-1 pt-4">Pesan langsung</Overline>
       <ul className="flex flex-col gap-0.5">
-        {directAgents(agents).map(a => {
+        {directAgents(agents, links).map(a => {
           const key = `${AGENT_PREFIX}${a.id}`;
-          const entry = agent(a.id);
+          const entry = { displayName: identityOf(a.id, linkOf(links, a.id)?.label).name, title: identityOf(a.id).title };
           return (
             <li key={a.id}>
               <a href={href('ruang-tim', key)} aria-current={selected === key ? 'page' : undefined} className={rowClass(selected === key)}>
@@ -159,10 +164,10 @@ function ThreadList({ loading, error, onRetry, agents, conversations, selected }
 
 /* ---------- Empty state: start a thread ---------- */
 
-function StartView({ agents, loading, onCreated }: { agents: WorkspaceAgent[] | undefined; loading: boolean; onCreated: () => void }) {
+function StartView({ agents, links, loading, onCreated }: { agents: WorkspaceAgent[] | undefined; links: AgentLinks; loading: boolean; onCreated: () => void }) {
   const source = useSource();
   const toast = useToast();
-  const cards = directAgents(agents ?? []);
+  const cards = directAgents(agents ?? [], links);
   const [target, setTarget] = useState<string>('');
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
@@ -201,7 +206,7 @@ function StartView({ agents, loading, onCreated }: { agents: WorkspaceAgent[] | 
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {cards.map(c => {
-              const entry = agent(c.id);
+              const entry = { displayName: identityOf(c.id, linkOf(links, c.id)?.label).name, title: identityOf(c.id).title };
               const ready = c.availability === 'ready';
               const selected = ready && chosen === c.id;
               const inner = (
@@ -259,6 +264,7 @@ function StartView({ agents, loading, onCreated }: { agents: WorkspaceAgent[] | 
 
 function shortNote(a: AgentAvailability): string {
   if (a === 'shared') return 'Satu sesi dengan Telegram.';
+  if (a === 'disconnected') return 'Chat web belum tersambung.';
   if (a === 'history_only') return 'Bekerja lewat Telegram — riwayat saja.';
   if (a === 'planned') return 'Belum diaktifkan.';
   return 'Tidak tersedia untuk chat.';
@@ -266,15 +272,16 @@ function shortNote(a: AgentAvailability): string {
 
 /* ---------- Agent (direct message) view ---------- */
 
-function AgentPane({ id, agents, conversations, loading, onNew }: {
+function AgentPane({ id, agents, links, conversations, loading, onNew }: {
   id: string;
   agents: WorkspaceAgent[] | undefined;
+  links: AgentLinks;
   conversations: ChatConversation[];
   loading: boolean;
   onNew: () => void;
 }) {
   const entry = agent(id);
-  const availability = availabilityOf(agents, id);
+  const availability = availabilityOf(agents, links, id);
   const description = agents?.find(a => a.id === id)?.description;
   const reason = blockedReason(availability, id);
 
@@ -299,12 +306,6 @@ function AgentPane({ id, agents, conversations, loading, onNew }: {
           </div>
 
           {!loading && reason && <Notice>{reason}</Notice>}
-          {!loading && id === CANDRA_ID && (
-            <div className="flex flex-wrap gap-2">
-              <a href={href('keputusan')} className="inline-flex h-9 items-center rounded-lg bg-ink px-3.5 text-[13px] font-medium text-white">Buka Keputusan</a>
-              <a href={href('percakapan')} className="inline-flex h-9 items-center rounded-lg border border-line px-3.5 text-[13px] font-medium hover:bg-surface">Buka Percakapan</a>
-            </div>
-          )}
           {!loading && availability === 'ready' && (
             <div><Button variant="primary" icon={<Plus size={15} />} onClick={onNew}>Mulai thread dengan {entry.displayName}</Button></div>
           )}

@@ -5,7 +5,7 @@ import { senderLabel, workspace } from '../config/workspace';
 import { useResource, useSource, useToast } from '../lib/data';
 import { ago, ageHours, bubbles, dateTime, maskPhone, parseJson } from '../lib/format';
 import { go, href } from '../lib/router';
-import type { ReviewItem, ReviewPolicy, StudyContent } from '../lib/types';
+import type { OutboxItem, ReviewItem, ReviewPolicy, StudyContent } from '../lib/types';
 import { WhyEligible } from './keputusan/Evidence';
 import { ReviseModal, type DeclineAction } from './keputusan/ReviseModal';
 
@@ -200,14 +200,7 @@ export function KeputusanPage({ id }: { id?: string }) {
       {/* Detail */}
       <section className={`${id ? 'flex' : 'hidden lg:flex'} min-h-0 min-w-0 flex-1 flex-col`} aria-label="Detail draf">
         {loading && <DetailSkeleton />}
-        {res.data && !selected && id && (
-          <div className="flex-1 overflow-y-auto">
-            <BackLink />
-            <EmptyState icon={<Info size={20} />} title="Draf ini sudah tidak menunggu keputusan" action={<Button onClick={() => go('keputusan')}>Kembali ke daftar</Button>}>
-              Mungkin sudah diputuskan, direvisi menjadi versi baru, atau sudah terkirim.
-            </EmptyState>
-          </div>
-        )}
+        {res.data && !selected && id && <InactiveDraft id={id} active={items ?? []} />}
         {res.data && !selected && !id && (
           <div className="grid flex-1 place-items-center overflow-y-auto">
             <EmptyState icon={<Check size={20} />} title="Semua draf sudah ditinjau" action={<a href={href('beranda')} className="inline-flex h-9 items-center rounded-lg border border-line bg-card px-3.5 text-[13px] font-medium hover:bg-surface">Kembali ke Beranda</a>}>
@@ -275,6 +268,60 @@ function ListRow({ item, active, preview }: { item: ReviewItem; active: boolean;
 }
 
 const controlLabel: Record<string, string> = { HOLD: 'Ditahan', HUMAN_CONTROLLED: 'Dipegang kamu', DO_NOT_CONTACT: 'Jangan hubungi', AUTO: 'Otomatis' };
+
+const closedTitle: Record<string, string> = {
+  cancelled: 'Draf ini sudah dibatalkan',
+  sent: 'Draf ini sudah terkirim',
+  sending: 'Draf ini sedang dikirim',
+  failed: 'Draf ini gagal dikirim',
+};
+
+/** Why a draft left review, in owner language. Keys are outbox.error codes written by the backend. */
+const closedReason: Record<string, string> = {
+  ...REVOKED_REASON,
+  control_hold: 'percakapan ditahan',
+  do_not_contact: 'prospek ditandai jangan dihubungi',
+  superseded: 'sudah diganti versi yang lebih baru',
+};
+
+/**
+ * A link (from an agent message or an old bookmark) to a draft that is no longer pending.
+ * Shows what happened to it and, when the same prospect has an active draft, links there.
+ */
+function InactiveDraft({ id, active }: { id: string; active: ReviewItem[] }) {
+  const res = useResource(s => s.draft(id), [id]);
+  const draft: OutboxItem | undefined = res.data;
+  const current = draft ? active.find(r => r.conversation_id === draft.conversation_id && PENDING.includes(r.status)) : undefined;
+  const title = draft ? closedTitle[draft.status] ?? 'Draf ini tidak lagi menunggu keputusan' : 'Draf ini tidak lagi menunggu keputusan';
+  // Codes map to owner language; backend notes that are already sentences are shown as they are.
+  const reason = draft?.error ? closedReason[draft.error] ?? (/\s/.test(draft.error) ? draft.error : null) : null;
+  return (
+    <div className="flex-1 overflow-y-auto">
+      <BackLink />
+      <div className="mx-auto flex max-w-[860px] flex-col gap-4 px-4 py-5 sm:px-6">
+        <EmptyState
+          icon={<Info size={20} />}
+          title={title}
+          action={current
+            ? <Button variant="primary" onClick={() => go('keputusan', current.id)}>Buka draf aktif {current.name}</Button>
+            : <Button onClick={() => go('keputusan')}>Kembali ke daftar</Button>}
+        >
+          {res.loading ? 'Memeriksa status draf…'
+            : res.error ? 'Status draf tidak bisa diperiksa. Draf ini tidak ada di daftar yang menunggu keputusanmu.'
+            : `${draft ? `Versi v${draft.version}, dibuat ${dateTime(draft.created_at)}. ` : ''}${reason ? `Alasan: ${reason}. ` : ''}${current ? 'Prospek ini punya draf lain yang menunggu keputusanmu.' : 'Tidak ada draf aktif lain untuk prospek ini.'}`}
+        </EmptyState>
+        {draft?.body && (
+          <Card className="p-4">
+            <Overline>Isi draf (hanya lihat)</Overline>
+            <div className="mt-2 flex flex-col gap-2 opacity-80">
+              {bubbles(draft.body).map((b, i) => <p key={i} className="rounded-xl bg-line-soft px-3 py-2 text-[14px] whitespace-pre-wrap break-words">{b}</p>)}
+            </div>
+          </Card>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function BackLink() {
   return (

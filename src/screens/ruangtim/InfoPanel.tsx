@@ -3,17 +3,17 @@ import { AgentAvatar, Overline, Pill, Tabs, type Tone } from '../../components/u
 import { agent, workspace } from '../../config/workspace';
 import { dateTime } from '../../lib/format';
 import type { ChatSnapshot, WorkspaceAgent } from '../../lib/types';
-import { activity14, availabilityOf, availabilityText, membersOf, threadStatus, type AgentAvailability } from './model';
+import { activity14, availabilityOf, availabilityText, membersOf, threadStatus, type AgentAvailability, type AgentLinks } from './model';
 
 const availabilityTone: Record<AgentAvailability, Tone> = {
-  ready: 'ok', history_only: 'gray', planned: 'gray', shared: 'ok', unknown: 'unknown',
+  ready: 'ok', history_only: 'gray', planned: 'gray', shared: 'ok', disconnected: 'unknown', unknown: 'unknown',
 };
 
 export function AgentStatusPill({ availability }: { availability: AgentAvailability }) {
   return <Pill tone={availabilityTone[availability]} dot={availability === 'ready'}>{availabilityText[availability]}</Pill>;
 }
 
-export function InfoPanel({ chat, agents }: { chat: ChatSnapshot; agents: WorkspaceAgent[] | undefined }) {
+export function InfoPanel({ chat, agents, links }: { chat: ChatSnapshot; agents: WorkspaceAgent[] | undefined; links: AgentLinks }) {
   const [tab, setTab] = useState<'info' | 'anggota'>('info');
   const members = membersOf(chat);
   const status = threadStatus(chat);
@@ -58,7 +58,7 @@ export function InfoPanel({ chat, agents }: { chat: ChatSnapshot; agents: Worksp
           </li>
           {members.map(id => {
             const entry = agent(id);
-            const availability = availabilityOf(agents, id);
+            const availability = availabilityOf(agents, links, id);
             return (
               <li key={id} className="flex items-center gap-3">
                 <AgentAvatar id={id} size={32} status={availability === 'ready' ? 'online' : 'idle'} />
