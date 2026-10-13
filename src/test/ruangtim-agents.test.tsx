@@ -101,4 +101,17 @@ describe('Ruang Tim — agent dengan tautan web', () => {
     await waitFor(() => expect(sidebar().textContent).toContain('Agent Baru'));
     await screen.findByPlaceholderText('Tulis pesan untuk Agent Baru…');
   });
+
+  it('lampiran agent di luar roster memakai label sesi API, bukan id internal', async () => {
+    const source = sourceWith(
+      [link('agent_baru', 'Agent Baru')],
+      { agent_baru: session('agent_baru', 'Agent Baru', {
+        messages: [{ id: 'file-1', role: 'assistant', content: 'Ini laporannya.\nMEDIA:/demo/laporan.md', created_at: 1_760_000_000, source: 'web' }],
+      }) },
+    );
+    await open(source, 'agent:agent_baru');
+    await screen.findByText('Dokumen · dibagikan Agent Baru');
+    expect(screen.queryByText('Dokumen · dibagikan agent_baru')).toBeNull();
+    expect(screen.getByRole('article').getAttribute('aria-label')).toMatch(/^Agent Baru,/);
+  });
 });

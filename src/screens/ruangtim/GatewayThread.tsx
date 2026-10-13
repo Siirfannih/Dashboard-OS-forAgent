@@ -70,7 +70,7 @@ export function GatewayThread({ agentId }: { agentId: string }) {
           {res.error && !session && <ErrorBanner message={res.error} onRetry={res.reload} />}
           {session?.available && <div className="mb-2"><Notice>{sessionNote(name)}</Notice></div>}
           {unavailable && <Notice tone="warn">{reasonText(name)[session.reason ?? ''] ?? session.detail ?? `${name} belum bisa diajak bicara dari web.`}</Notice>}
-          {chat && chat.messages.length > 0 && <MessageList chat={chat} mediaAgent={agentId} />}
+          {chat && chat.messages.length > 0 && <MessageList chat={chat} mediaAgent={agentId} mediaAgentLabel={name} />}
           {session?.available && chat?.messages.length === 0 && (
             <div className="py-10 text-center">
               <div className="font-display text-[17px] font-semibold">Mau bahas apa dengan {name}?</div>

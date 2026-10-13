@@ -10,7 +10,7 @@ import { Attachments } from './Attachments';
 import { ObjectCards } from './ObjectCards';
 import { Composer, Notice, RichText } from './Composer';
 import { InfoPanel } from './InfoPanel';
-import { availabilityOf, blockedReason, isActiveRun, membersOf, type AgentLinks } from './model';
+import { availabilityOf, blockedReason, identityOf, isActiveRun, membersOf, type AgentLinks } from './model';
 
 export function Thread({ id, agents, links, onChanged, prefill }: {
   id: string;
@@ -162,7 +162,7 @@ function ThreadHeader({ title, crumb, onInfo }: { title: string; crumb?: ReactNo
 }
 
 /** `mediaAgent`: render Hermes "MEDIA:" lines as attachment cards served by that agent's gateway session. */
-export function MessageList({ chat, mediaAgent }: { chat: ChatSnapshot; mediaAgent?: string }) {
+export function MessageList({ chat, mediaAgent, mediaAgentLabel }: { chat: ChatSnapshot; mediaAgent?: string; mediaAgentLabel?: string }) {
   let lastDay = '';
   let prev: ChatMessage | null = null;
   const rows = chat.messages.map(m => {
@@ -170,16 +170,17 @@ export function MessageList({ chat, mediaAgent }: { chat: ChatSnapshot; mediaAge
     const showDay = day !== lastDay;
     lastDay = day;
     const author = m.role === 'user' ? 'owner' : (m.agent_id ?? chat.agent_id);
+    const identity = identityOf(author, author === mediaAgent ? mediaAgentLabel : undefined);
     const prevAuthor = prev ? (prev.role === 'user' ? 'owner' : (prev.agent_id ?? chat.agent_id)) : null;
     const gap = prev ? (toDate(m.created_at)?.valueOf() ?? 0) - (toDate(prev.created_at)?.valueOf() ?? 0) : Infinity;
     const compact = !showDay && prev?.role !== 'system' && prevAuthor === author && gap < 10 * 60_000;
     prev = m;
-    return { m, day, showDay, author, compact };
+    return { m, day, showDay, author, identity, compact };
   });
 
   return (
     <ol className="flex flex-col">
-      {rows.map(({ m, day, showDay, author, compact }) => (
+      {rows.map(({ m, day, showDay, author, identity, compact }) => (
         <li key={m.id}>
           {showDay && (
             <div className="my-4 flex items-center gap-3 text-[12px] font-medium text-muted" role="separator" aria-label={day}>
@@ -193,18 +194,18 @@ export function MessageList({ chat, mediaAgent }: { chat: ChatSnapshot; mediaAge
               <span className="tabular shrink-0">{clock(m.created_at)}</span>
             </div>
           ) : (
-            <article className={`flex gap-3 ${compact ? 'mt-1' : 'mt-4'}`} aria-label={`${agent(author).displayName}, ${clock(m.created_at)}`}>
+            <article className={`flex gap-3 ${compact ? 'mt-1' : 'mt-4'}`} aria-label={`${identity.name}, ${clock(m.created_at)}`}>
               <div className="w-8 shrink-0">{!compact && <AgentAvatar id={author} size={32} />}</div>
               <div className="min-w-0 max-w-[680px] flex-1">
                 {!compact && (
                   <div className="mb-0.5 flex flex-wrap items-baseline gap-x-2">
-                    <span className="text-[14px] font-semibold">{agent(author).displayName}</span>
-                    <span className="text-[12px] text-muted">{agent(author).title} · <span className="tabular">{clock(m.created_at)}</span></span>
+                    <span className="text-[14px] font-semibold">{identity.name}</span>
+                    <span className="text-[12px] text-muted">{identity.title} · <span className="tabular">{clock(m.created_at)}</span></span>
                   </div>
                 )}
                 {(() => {
                   const { text, media } = mediaAgent ? splitMedia(m.content) : { text: m.content, media: [] as string[] };
-                  return <>{text && <RichText text={text} />}{author !== 'owner' && text && <ObjectCards text={text} />}{media.length > 0 && <Attachments agentId={mediaAgent!} paths={media} />}</>;
+                  return <>{text && <RichText text={text} />}{author !== 'owner' && text && <ObjectCards text={text} />}{media.length > 0 && <Attachments agentId={mediaAgent!} agentLabel={mediaAgentLabel} paths={media} />}</>;
                 })()}
               </div>
             </article>
