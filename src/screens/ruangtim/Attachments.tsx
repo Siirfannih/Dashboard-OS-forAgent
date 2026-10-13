@@ -29,10 +29,10 @@ const kindLabel: Record<Kind, string> = {
 const fileName = (path: string) => path.split('/').pop() || path;
 
 /** Files an agent shared in the conversation (Hermes "MEDIA:" lines), with in-place preview. */
-export function Attachments({ agentId, paths }: { agentId: string; paths: string[] }) {
+export function Attachments({ agentId, agentLabel, paths }: { agentId: string; agentLabel?: string; paths: string[] }) {
   const source = useSource();
   const [open, setOpen] = useState<string | null>(null);
-  const name = identityOf(agentId).name;
+  const name = identityOf(agentId, agentLabel).name;
   if (!paths.length) return null;
   return (
     <div className="mt-2 flex flex-col gap-2">

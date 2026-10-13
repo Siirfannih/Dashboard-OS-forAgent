@@ -149,10 +149,11 @@ export function Shell({ page, children, onOpenGuide, guideProgress, onLogout }: 
             <span className="hidden text-[13px] text-line sm:inline">/</span>
             <span className="truncate text-[13px] font-semibold">{pageTitle[page]}</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             {source.kind === 'demo' && (
-              <button onClick={onLogout} className="inline-flex items-center gap-1.5 rounded-full bg-info-soft px-2.5 text-[12px] font-medium leading-6 text-info hover:underline" title="Kembali ke halaman masuk untuk melihat data asli">
-                Demo · data fiktif <span aria-hidden>·</span> Keluar dari demo
+              <button onClick={onLogout} aria-label="Mode demo dengan data fiktif. Keluar dari demo" className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-info-soft px-2.5 text-[12px] font-medium leading-6 text-info hover:underline" title="Mode demo dengan data fiktif. Kembali ke halaman masuk untuk melihat data asli">
+                <span className="sm:hidden" aria-hidden>Demo · Keluar</span>
+                <span className="hidden sm:inline" aria-hidden>Demo · data fiktif · Keluar dari demo</span>
               </button>
             )}
             {paused === true && <Pill tone="warn" dot title="Tidak ada pesan keluar sampai dilanjutkan">Pengiriman dijeda</Pill>}
